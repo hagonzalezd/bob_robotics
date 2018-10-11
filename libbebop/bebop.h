@@ -76,6 +76,7 @@ namespace Robots {
 using namespace units::literals;
 using namespace units::angle;
 using namespace units::angular_velocity;
+using namespace units::length;
 using namespace units::velocity;
 
 //! Handlers which are called when the drone takes off or lands
@@ -188,6 +189,7 @@ public:
     virtual void setRoll(float right) override;
     virtual void setVerticalSpeed(float up) override;
     virtual void setYawSpeed(float right) override;
+    void relativeMove(meter_t dx, meter_t dy, meter_t dz, radian_t dpsi = 0_rad);
 
     // misc
     State getState();
@@ -293,6 +295,7 @@ private:
     static void commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
                                 ARCONTROLLER_DICTIONARY_ELEMENT_t *dict,
                                 void *data);
+    static void relativeMoveEnded(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static void alertStateChanged(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static void productVersionReceived(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static int printCallback(eARSAL_PRINT_LEVEL level,

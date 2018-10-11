@@ -6,8 +6,8 @@
 /*
  * Little macros to make using the ARSDK's C API less verbose.
  */
-#define DRONE_COMMAND(COMMAND, ARG) \
-    checkError(m_Device->aRDrone3->COMMAND(m_Device->aRDrone3, ARG));
+#define DRONE_COMMAND(COMMAND, ...) \
+    checkError(m_Device->aRDrone3->COMMAND(m_Device->aRDrone3, __VA_ARGS__));
 
 #define DRONE_COMMAND_NO_ARG(COMMAND) \
     checkError(m_Device->aRDrone3->COMMAND(m_Device->aRDrone3));
@@ -439,6 +439,9 @@ Bebop::commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED:
         alertStateChanged(dict);
         break;
+    case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND:
+        relativeMoveEnded(dict);
+        break;
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSETTINGSSTATE_MAXTILTCHANGED:
         MAX_SPEED_CHANGED(Tilt, PILOTINGSETTINGSSTATE_MAXTILT);
         break;
@@ -457,34 +460,90 @@ Bebop::commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
 }
 
 void
+Bebop::relativeMoveEnded(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict)
+{
+    ARCONTROLLER_DICTIONARY_ARG_t *arg = nullptr;
+    ARCONTROLLER_DICTIONARY_ELEMENT_t *elem = nullptr;
+    HASH_FIND_STR(dict, ARCONTROLLER_DICTIONARY_SINGLE_KEY, elem);
+    if (!elem) {
+        return;
+    }
+
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR, arg);
+    if (!arg) {
+        return;
+    }
+
+    switch (arg->value.I32) {
+    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_OK:
+        std::cout << "Relative move successful" << std::endl;
+        break;
+    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_UNKNOWN:
+        std::cout << "Unknown error while doing relative move" << std::endl;
+        break;
+    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_BUSY:
+        std::cout << "Device is busy; relative move command ignored" << std::endl;
+        return;
+    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_NOTAVAILABLE:
+        std::cout << "Relative move command is not available" << std::endl;
+        return;
+    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_INTERRUPTED:
+        std::cout << "Relative move was interrupted" << std::endl;
+        break;
+    default:
+        break;
+    }
+
+    meter_t dx = 0_m, dy = 0_m, dz = 0_m;
+    degree_t dpsi = 0_deg;
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DX, arg);
+    if (arg) {
+        dx = meter_t(arg->value.Float);
+    }
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DY, arg);
+    if (arg) {
+        dy = meter_t(arg->value.Float);
+    }
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DZ, arg);
+    if (arg) {
+        dz = meter_t(arg->value.Float);
+    }
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DPSI, arg);
+    if (arg) {
+        dpsi = radian_t(arg->value.Float);
+    }
+    std::cout << "Moved by: (" << dx << ", " << dy << ", " << dz << ") and " << dpsi << std::endl;
+}
+
+void
 Bebop::alertStateChanged(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict)
 {
     ARCONTROLLER_DICTIONARY_ARG_t *arg = nullptr;
     ARCONTROLLER_DICTIONARY_ELEMENT_t *elem = nullptr;
     HASH_FIND_STR(dict, ARCONTROLLER_DICTIONARY_SINGLE_KEY, elem);
     if (elem) {
-        HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE, arg);
-        if (arg) {
-            switch (arg->value.I32) {
-            case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_USER:
-                std::cout << "Alert! User emergency alert" << std::endl;
-                break;
-            case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_CUT_OUT:
-                std::cout << "Alert! Drone has cut out" << std::endl;
-                break;
-            case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_CRITICAL_BATTERY:
-                std::cout << "Alert! Battery level is critical" << std::endl;
-                break;
-            case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_LOW_BATTERY:
-                std::cout << "Alert! Battery level is low" << std::endl;
-                break;
-            case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_TOO_MUCH_ANGLE:
-                std::cout << "Alert! The angle of the drone is too high" << std::endl;
-                break;
-            default:
-                break;
-            }
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE, arg);
+    if (arg) {
+        switch (arg->value.I32) {
+        case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_USER:
+            std::cout << "Alert! User emergency alert" << std::endl;
+            break;
+        case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_CUT_OUT:
+            std::cout << "Alert! Drone has cut out" << std::endl;
+            break;
+        case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_CRITICAL_BATTERY:
+            std::cout << "Alert! Battery level is critical" << std::endl;
+            break;
+        case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_LOW_BATTERY:
+            std::cout << "Alert! Battery level is low" << std::endl;
+            break;
+        case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_ALERTSTATECHANGED_STATE_TOO_MUCH_ANGLE:
+            std::cout << "Alert! The angle of the drone is too high" << std::endl;
+            break;
+        default:
+            break;
         }
+    }
     }
 }
 
