@@ -3,9 +3,7 @@
 // BoB robotics includes
 #include "../common/assert.h"
 
-/*
- * Little macros to make using the ARSDK's C API less verbose.
- */
+// Little macros to make using the ARSDK's C API less verbose.
 #define DRONE_COMMAND(COMMAND, ...) \
     checkError(m_Device->aRDrone3->COMMAND(m_Device->aRDrone3, __VA_ARGS__));
 
@@ -196,9 +194,7 @@ Bebop::relativeMove(meter_t dx, meter_t dy, meter_t dz, radian_t dpsi)
                   (float) dz.value(), (float) dpsi.value());
 }
 
-/*!
- * \brief Tell the drone to take a photo and store it.
- */
+//! Tell the drone to take a photo and store it.
 void
 Bebop::takePhoto()
 {
