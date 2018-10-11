@@ -190,8 +190,30 @@ Bebop::setYawSpeed(float right)
 void
 Bebop::relativeMove(meter_t dx, meter_t dy, meter_t dz, radian_t dpsi)
 {
-    DRONE_COMMAND(sendPilotingMoveBy, (float) dx.value(), (float) dy.value(),
-                  (float) dz.value(), (float) dpsi.value());
+    m_RelativeMoveState = Bebop::RelativeMoveState::Moving;
+    DRONE_COMMAND(sendPilotingMoveBy, (float) dx.value(), (float) dy.value(), (float) dz.value(), (float) dpsi.value());
+}
+
+//! Get the status of a relative move operation
+Bebop::RelativeMoveState
+Bebop::getRelativeMoveState() const
+{
+    return m_RelativeMoveState;
+}
+
+//! Get the distance moved in the last relative move operation
+std::pair<Vector3<meter_t>, radian_t>
+Bebop::getRelativeMovePoseDifference() const
+{
+    return std::make_pair(m_RelativeMovePositionDistance, m_RelativeMoveAngleDistance);
+}
+
+//! Reset the relative move state, e.g. after reading
+void
+Bebop::resetRelativeMoveState()
+{
+    BOB_ASSERT(m_RelativeMoveState != RelativeMoveState::Moving);
+    m_RelativeMoveState = RelativeMoveState::InitialState;
 }
 
 //! Tell the drone to take a photo and store it.
@@ -436,7 +458,7 @@ Bebop::commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
         alertStateChanged(dict);
         break;
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND:
-        relativeMoveEnded(dict);
+        bebop->relativeMoveEnded(dict);
         break;
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSETTINGSSTATE_MAXTILTCHANGED:
         MAX_SPEED_CHANGED(Tilt, PILOTINGSETTINGSSTATE_MAXTILT);
@@ -465,50 +487,27 @@ Bebop::relativeMoveEnded(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict)
         return;
     }
 
-    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR, arg);
-    if (!arg) {
-        return;
-    }
-
-    switch (arg->value.I32) {
-    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_OK:
-        std::cout << "Relative move successful" << std::endl;
-        break;
-    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_UNKNOWN:
-        std::cout << "Unknown error while doing relative move" << std::endl;
-        break;
-    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_BUSY:
-        std::cout << "Device is busy; relative move command ignored" << std::endl;
-        return;
-    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_NOTAVAILABLE:
-        std::cout << "Relative move command is not available" << std::endl;
-        return;
-    case ARCOMMANDS_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR_INTERRUPTED:
-        std::cout << "Relative move was interrupted" << std::endl;
-        break;
-    default:
-        break;
-    }
-
-    meter_t dx = 0_m, dy = 0_m, dz = 0_m;
-    degree_t dpsi = 0_deg;
     HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DX, arg);
     if (arg) {
-        dx = meter_t(arg->value.Float);
+        m_RelativeMovePositionDistance[0] = meter_t(arg->value.Float);
     }
     HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DY, arg);
     if (arg) {
-        dy = meter_t(arg->value.Float);
+        m_RelativeMovePositionDistance[1] = meter_t(arg->value.Float);
     }
     HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DZ, arg);
     if (arg) {
-        dz = meter_t(arg->value.Float);
+        m_RelativeMovePositionDistance[2] = meter_t(arg->value.Float);
     }
     HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_DPSI, arg);
     if (arg) {
-        dpsi = radian_t(arg->value.Float);
+        m_RelativeMoveAngleDistance = radian_t(arg->value.Float);
     }
-    std::cout << "Moved by: (" << dx << ", " << dy << ", " << dz << ") and " << dpsi << std::endl;
+
+    HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR, arg);
+    if (arg) {
+        m_RelativeMoveState = static_cast<Bebop::RelativeMoveState>(arg->value.I32);
+    }
 }
 
 void
