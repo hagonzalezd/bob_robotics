@@ -216,6 +216,14 @@ Bebop::resetRelativeMoveState()
     m_RelativeMoveState = RelativeMoveState::InitialState;
 }
 
+//! Carry out flat trim calibration
+void
+Bebop::doFlatTrimCalibration()
+{
+    DRONE_COMMAND_NO_ARG(sendPilotingFlatTrim);
+    m_FlatTrimSemaphore.wait();
+}
+
 //! Tell the drone to take a photo and store it.
 void
 Bebop::takePhoto()
@@ -356,7 +364,7 @@ Bebop::stopStreaming()
 inline Bebop::State
 Bebop::getStateUpdate()
 {
-    m_Semaphore.wait();
+    m_StateSemaphore.wait();
     return getState();
 }
 
@@ -416,7 +424,7 @@ Bebop::stateChanged(eARCONTROLLER_DEVICE_STATE newstate,
                     void *data)
 {
     Bebop *bebop = reinterpret_cast<Bebop *>(data);
-    bebop->m_Semaphore.notify(); // trigger semaphore used by getStateUpdate()
+    bebop->m_StateSemaphore.notify(); // trigger semaphore used by getStateUpdate()
 
     switch (newstate) {
     case ARCONTROLLER_DEVICE_STATE_STOPPED:
@@ -472,6 +480,12 @@ Bebop::commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
     case ARCONTROLLER_DICTIONARY_KEY_COMMON_SETTINGSSTATE_PRODUCTVERSIONCHANGED:
         productVersionReceived(dict);
         break;
+    case ARCONTROLLER_DICTIONARY_KEY_COMMON_CALIBRATIONSTATE_MAGNETOCALIBRATIONREQUIREDSTATE:
+        magnetometerCalibrationStateReceived(dict);
+        break;
+    case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_FLATTRIMCHANGED:
+        bebop->m_FlatTrimSemaphore.notify();
+        break;
     default:
         break;
     }
@@ -507,6 +521,20 @@ Bebop::relativeMoveEnded(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict)
     HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGEVENT_MOVEBYEND_ERROR, arg);
     if (arg) {
         m_RelativeMoveState = static_cast<Bebop::RelativeMoveState>(arg->value.I32);
+    }
+}
+
+void
+Bebop::magnetometerCalibrationStateReceived(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict)
+{
+    ARCONTROLLER_DICTIONARY_ELEMENT_t *elem = nullptr;
+    HASH_FIND_STR(dict, ARCONTROLLER_DICTIONARY_SINGLE_KEY, elem);
+    if (elem) {
+        ARCONTROLLER_DICTIONARY_ARG_t *arg = nullptr;
+        HASH_FIND_STR(elem->arguments, ARCONTROLLER_DICTIONARY_KEY_COMMON_CALIBRATIONSTATE_MAGNETOCALIBRATIONREQUIREDSTATE_REQUIRED, arg);
+        if (arg && arg->value.U8) {
+            std::cout << "!!! WARNING: BEBOP'S MAGNETOMETERS REQUIRE CALIBRATION !!!" << std::endl;
+        }
     }
 }
 

@@ -121,6 +121,7 @@ public:
         ~VideoStream();
         virtual bool readFrame(cv::Mat &) override;
         virtual cv::Size getOutputSize() const override;
+        virtual std::string getCameraName() const;
 
     private:
         cv::Mat m_Frame;
@@ -185,7 +186,7 @@ public:
     Bebop(degrees_per_second_t maxYawSpeed = DefaultMaximumYawSpeed,
           meters_per_second_t maxVerticalSpeed = DefaultMaximumVerticalSpeed,
           degree_t maxTilt = DefaultMaximumTilt);
-    ~Bebop();
+    virtual ~Bebop() override;
 
     // speed limits
     degree_t getMaximumTilt() const;
@@ -206,6 +207,9 @@ public:
     RelativeMoveState getRelativeMoveState() const;
     std::pair<Vector3<meter_t>, radian_t> getRelativeMovePoseDifference() const;
     void resetRelativeMoveState();
+
+    // calibration
+    void doFlatTrimCalibration();
 
     // misc
     State getState();
@@ -287,7 +291,7 @@ private:
     };
 
     ControllerPtr m_Device;
-    Semaphore m_Semaphore;
+    Semaphore m_StateSemaphore, m_FlatTrimSemaphore;
     std::unique_ptr<VideoStream> m_VideoStream;
     FlightEventHandler m_FlightEventHandler = nullptr;
     LimitValues<degree_t> m_TiltLimits;
@@ -317,6 +321,7 @@ private:
     void relativeMoveEnded(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static void alertStateChanged(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static void productVersionReceived(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
+    static void magnetometerCalibrationStateReceived(ARCONTROLLER_DICTIONARY_ELEMENT_t *dict);
     static int printCallback(eARSAL_PRINT_LEVEL level,
                              const char *tag,
                              const char *format,

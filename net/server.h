@@ -80,15 +80,9 @@ public:
         return m_Socket.get();
     }
 
-    /*!
-     * \brief Keep accepting connections and parsing input for ever
-     *
-     * **NOTE**: Can only handle one connection at a time.
-     */
-    void run() override
+protected:
+    virtual void runInternal() override
     {
-        runStart();
-
         // Start listening
         if (listen(m_ListenSocket, 10)) {
             throw std::runtime_error("Error (" + std::to_string(errno) + "): Could not listen");
@@ -112,7 +106,7 @@ public:
             std::cout << "Incoming connection from " << saddr << std::endl;
 
             try {
-                Node::run();
+                Node::runInternal();
             } catch (SocketError &e) {
                 std::cout << "Connection closed [" + std::string(e.what()) + "]"
                           << std::endl;
