@@ -1,5 +1,9 @@
-# Stupid file that KDE puts in folders sometimes
+# CMake build dir
+**/build/*
+
+# OS-specific files
 .directory
+.DS_Store
 
 # Temporary files
 *~
@@ -22,6 +26,8 @@ bob_robotics.includes
 **/*.a
 **/*.o
 **/*.obj
+**/*.lib
+**/*.dll
 
 # Ignore dependency files
 **/*.d
@@ -367,3 +373,18 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder
 .mfractor/
+
+# Whitelist bob_make tool
+!/bin/bob_make
+
+# Ignore CMake output files
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps

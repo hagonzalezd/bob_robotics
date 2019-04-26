@@ -1,24 +1,25 @@
 // BoB robotics includes
+#include "antworld/agent.h"
+#include "common/logging.h"
+#include "common/main.h"
 #include "common/stopwatch.h"
 #include "hid/joystick.h"
-#include "libantworld/agent.h"
 
 // OpenCV
 #include <opencv2/opencv.hpp>
 
 // Standard C++ includes
 #include <chrono>
-#include <iostream>
 #include <thread>
 #include <tuple>
 
 using namespace BoBRobotics;
 using namespace std::literals;
-using namespace units::length;
 using namespace units::angle;
+using namespace units::length;
 
 int
-main()
+bob_main(int, char **)
 {
     const cv::Size RenderSize{ 720, 150 };
     const meter_t AntHeight = 1_cm;
@@ -30,7 +31,7 @@ main()
     // Create renderer
     AntWorld::Renderer renderer(256, 0.001, 1000.0, 360_deg);
     auto &world = renderer.getWorld();
-    world.load("../../libantworld/world5000_gray.bin",
+    world.load("../../include/antworld/world5000_gray.bin",
                { 0.0f, 1.0f, 0.0f },
                { 0.898f, 0.718f, 0.353f });
     const auto minBound = world.getMinBound();
@@ -43,7 +44,7 @@ main()
     // Control the agent with a joystick
     agent.addJoystick(joystick);
 
-    std::cout << "Press the B button to quit" << std::endl;
+    LOG_INFO << "Press the B button to quit";
     Pose3<meter_t, degree_t> lastPose;
     Stopwatch stopwatch;
     stopwatch.start();
@@ -58,16 +59,18 @@ main()
         // Poll joystick
         joystick.update();
 
-        auto pose = agent.getPose<meter_t, degree_t>();
+        const auto pose = agent.getPose<meter_t, degree_t>();
         if (pose == lastPose) {
             std::this_thread::sleep_for(5ms);
             continue;
         }
 
-        // std::cout << "Pose: " << pose.x() << ", " << pose.y() << ", " << pose.yaw() << std::endl;
+        // LOG_INFO << "Pose: " << pose;
         lastPose = pose;
 
         // Update display
         agent.update();
     }
+
+    return EXIT_SUCCESS;
 }

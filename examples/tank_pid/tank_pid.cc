@@ -1,11 +1,11 @@
 // BoB robotics includes
-#include "robots/tank_pid.h"
 #include "common/background_exception_catcher.h"
 #include "common/main.h"
-#include "common/plot_agent.h"
 #include "common/read_objects.h"
 #include "hid/joystick.h"
+#include "robots/control/tank_pid.h"
 #include "vicon/udp.h"
+#include "viz/plot_agent.h"
 
 // This program can be run locally on the robot or remotely
 #ifdef NO_I2C_ROBOT
@@ -204,7 +204,7 @@ bob_main(int argc, char **argv)
             }
 
             // Plot robot's pose with an arrow
-            plotAgent(viconObject.getPose(), -2000_mm, 2000_mm, -2000_mm, 2000_mm);
+            Viz::plotAgent(viconObject.getPose(), -2000_mm, 2000_mm, -2000_mm, 2000_mm);
             plt::pause(0.025);
 
             // Get motor commands from positioner, if it's running

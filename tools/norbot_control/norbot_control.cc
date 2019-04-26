@@ -12,7 +12,7 @@
 #include "video/panoramic.h"
 #include "video/randominput.h"
 
-#ifndef NO_I2C_ROBOT
+#ifndef NO_I2C
 #include "robots/norbot.h"
 #endif
 
@@ -54,8 +54,8 @@ bob_main(int, char **)
             netSink = std::make_unique<Video::NetSink>(connection, camera->getOutputSize(), camera->getCameraName());
         }
 
+#ifdef NO_I2C
         // Try to connect to servos over I2C and if that fails, try to connect to EV3
-#ifdef NO_I2C_ROBOT
         tank = std::make_unique<Robots::Tank>();
 #else
         try {
