@@ -394,17 +394,22 @@ function(BoB_external_libraries)
 
             # For CMake < 3.9, we need to make the target ourselves
             if(NOT OpenMP_CXX_FOUND)
-                find_package(Threads REQUIRED)
                 add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
+
+                # Some compilers (e.g. clang) might not have support for OpenMP
+                if(NOT OpenMP_CXX_FLAGS)
+                    return()
+                endif()
+
                 set_property(TARGET OpenMP::OpenMP_CXX
                              PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
 
                 # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
                 set_property(TARGET OpenMP::OpenMP_CXX
                              PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
-
-                BoB_add_link_libraries(OpenMP::OpenMP_CXX)
             endif()
+
+            BoB_add_link_libraries(OpenMP::OpenMP_CXX)
         elseif(${lib} STREQUAL sfml-graphics)
             # It seems like only newer versions of SFML include a CMake package,
             # so use pkg-config on Unix instead, in case we don't have it
