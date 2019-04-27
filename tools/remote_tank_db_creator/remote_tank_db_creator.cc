@@ -1,5 +1,4 @@
 // BoB robotics includes
-#include "common/arena_object.h"
 #include "common/assert.h"
 #include "common/background_exception_catcher.h"
 #include "common/logging.h"
@@ -7,14 +6,15 @@
 #include "common/obstacle_circumnavigation.h"
 #include "common/pose.h"
 #include "common/read_objects.h"
-#include "common/sfml_world.h"
 #include "hid/joystick.h"
 #include "navigation/image_database.h"
 #include "net/client.h"
-#include "robots/robot_positioner.h"
+#include "robots/control/robot_positioner.h"
 #include "robots/tank_netsink.h"
 #include "vicon/udp.h"
 #include "video/netsource.h"
+#include "viz/sfml_world/arena_object.h"
+#include "viz/sfml_world/sfml_world.h"
 
 // Third-party includes
 #include "third_party/path.h"
@@ -126,14 +126,14 @@ bob_main(int argc, char **argv)
             return ObjectVector{};
         }
     }();
-    CollisionDetector collisionDetector(robotDimensions, objects, 20_cm);
+    Robots::CollisionDetector collisionDetector(robotDimensions, objects, 20_cm);
 
     // Display for robot + objects
     using V = Vector2<meter_t>;
-    SFMLWorld<> display{ V{ 5_m, 5_m } };
+    Viz::SFMLWorld display{ V{ 5_m, 5_m } };
     auto car = display.createCarAgent(tank.getRobotWidth());
-    auto objectShapes = ArenaObject::fromObjects(display, objects, collisionDetector.getResizedObjects());
-    std::vector<CrossShape> imagePoints;
+    auto objectShapes = Viz::ArenaObject::fromObjects(display, objects, collisionDetector.getResizedObjects());
+    std::vector<Viz::CrossShape> imagePoints;
 
     BackgroundExceptionCatcher catcher;
     catcher.trapSignals();

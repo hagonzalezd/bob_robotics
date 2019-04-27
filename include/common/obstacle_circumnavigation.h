@@ -1,12 +1,12 @@
 #pragma once
 
 // BoB robotics includes
-#include "collision.h"
 #include "geometry.h"
 #include "pose.h"
+#include "robots/control/collision_detector.h"
+#include "robots/control/tank_pid.h"
 #include "robots/positioner.h"
 #include "robots/tank.h"
-#include "robots/tank_pid.h"
 
 // Third-party includes
 #include "third_party/units.h"
@@ -106,7 +106,7 @@ public:
 
     ObstacleCircumnavigator(Robots::Tank &robot,
                             PoseGetterType &poseGetter,
-                            CollisionDetector &collisionDetector,
+                            Robots::CollisionDetector &collisionDetector,
                             meter_t stoppingDistance = 3_cm,
                             float kp = 0.1f,
                             float ki = 0.1f,
@@ -148,7 +148,7 @@ private:
     std::list<Vector2<meter_t>> m_PIDWaypoints;
     Eigen::MatrixX2d m_ObjectPerimeter;
     State m_State = State::DoingNothing;
-    CollisionDetector &m_CollisionDetector;
+    Robots::CollisionDetector &m_CollisionDetector;
 
     void startCircumnavigating(const Pose2<meter_t, radian_t> &robotPose,
                                const Vector2<meter_t> &robotGoal)
