@@ -181,13 +181,14 @@ macro(always_included_packages)
     # "passed up" by add_subdirectory(), so we always include these packages on
     # the off-chance we need them.
     if(NOT TARGET Eigen3::Eigen)
-        find_package(Eigen3)
+        include("${BOB_ROBOTICS_PATH}/cmake/FindEigen3.cmake")
     endif()
     if(NOT TARGET OpenMP::OpenMP_CXX)
         find_package(OpenMP)
     endif()
     if(NOT TARGET GLEW::GLEW)
-        find_package(GLEW)
+        include("${BOB_ROBOTICS_PATH}/cmake/SelectLibraryConfigurations.cmake")
+        include("${BOB_ROBOTICS_PATH}/cmake/FindGLEW.cmake")
     endif()
 
     # On Unix we use pkg-config to find SDL2, because the CMake package may not
