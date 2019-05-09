@@ -64,36 +64,34 @@ macro(BoB_project)
             set(GENN_CPU_ONLY ${PARSED_ARGS_GENN_CPU_ONLY})
         endif()
         if(GENN_CPU_ONLY)
-            add_library(${PROJECT_NAME}_genn_model STATIC ${genn_model_dest})
             add_definitions(-DCPU_ONLY)
             set(CPU_FLAG -c)
-        else() # Build with CUDA
-            find_package(CUDA REQUIRED)
-
-            # This is required as by default cmake builds files not ending in .cu
-            # with the default compiler
-            set_source_files_properties("${genn_model_dest}" PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
-            cuda_add_library(${PROJECT_NAME}_genn_model STATIC "${genn_model_dest}")
-            set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -x cu -arch sm_30")
         endif()
 
-        add_custom_command(OUTPUT ${genn_model_dest}
+        # Custom command to generate source code with GeNN
+        add_custom_command(PRE_BUILD
+                           OUTPUT ${genn_model_dest}
                            DEPENDS ${genn_model_src}
-                           COMMAND $ENV{GENN_PATH}/lib/bin/genn-buildmodel.sh
+                           COMMAND genn-buildmodel.sh
                                    ${genn_model_src}
                                    ${CPU_FLAG}
                                    -i ${BOB_ROBOTICS_PATH}:${BOB_ROBOTICS_PATH}/include
                            COMMENT "Generating source code with GeNN")
 
-        add_custom_target(${PROJECT_NAME}_genn_model_src ALL DEPENDS ${genn_model_dest})
-        add_dependencies(${PROJECT_NAME}_genn_model ${PROJECT_NAME}_genn_model_src)
+        # Custom command to generate librunner.so
+        add_custom_command(PRE_BUILD
+                           OUTPUT ${genn_model_dir}/librunner.so
+                           DEPENDS ${genn_model_dest}
+                           COMMAND make -C "${genn_model_dir}")
 
+        add_custom_target(${PROJECT_NAME}_genn_model ALL DEPENDS ${genn_model_dir}/librunner.so)
+
+        # Our targets depend on librunner.so
+        BoB_add_include_directories(/usr/include/genn)
+        BoB_add_link_libraries(${genn_model_dir}/librunner.so)
         foreach(target IN LISTS BOB_TARGETS)
-            BoB_add_link_libraries(${PROJECT_NAME}_genn_model)
+            add_dependencies(${target} ${PROJECT_NAME}_genn_model)
         endforeach()
-
-        # We need GeNN support
-        BoB_external_libraries(genn)
 
         # So code can access headers in the *_CODE folder
         BoB_add_include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -181,13 +179,13 @@ macro(always_included_packages)
     # "passed up" by add_subdirectory(), so we always include these packages on
     # the off-chance we need them.
     if(NOT TARGET Eigen3::Eigen)
-        find_package(Eigen3)
+        find_package(Eigen3 QUIET)
     endif()
     if(NOT TARGET OpenMP::OpenMP_CXX)
-        find_package(OpenMP)
+        find_package(OpenMP QUIET)
     endif()
     if(NOT TARGET GLEW::GLEW)
-        find_package(GLEW)
+        find_package(GLEW QUIET)
     endif()
 
     # On Unix we use pkg-config to find SDL2, because the CMake package may not
@@ -378,11 +376,14 @@ endfunction()
 function(BoB_external_libraries)
     foreach(lib IN LISTS ARGV)
         if(${lib} STREQUAL i2c)
-            # With cmake you don't get errors for linking against a non-existent
-            # library, but we might as well not bother if we definitely don't
-            # need it.
             if(NOT WIN32 AND NOT NO_I2C)
-                BoB_add_link_libraries("i2c")
+                # If it's a new version of i2c-tools then we need to link
+                # against an additonal library
+                execute_process(COMMAND "${CMAKE_CURRENT_LIST_DIR}/is_i2c_tools_new.sh"
+                                RESULT_VARIABLE rv)
+                if(NOT ${rv} EQUAL 0)
+                    BoB_add_link_libraries("i2c")
+                endif()
             endif()
         elseif(${lib} STREQUAL opencv)
             BoB_find_package(OpenCV REQUIRED)
@@ -446,20 +447,6 @@ function(BoB_external_libraries)
             find_package(OpenGL REQUIRED)
             BoB_add_include_directories(${OPENGL_INCLUDE_DIR})
             BoB_add_link_libraries(${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY})
-        elseif(${lib} STREQUAL genn)
-            if(NOT DEFINED ENV{GENN_PATH})
-                message(FATAL_ERROR "GENN_PATH environment variable is not set")
-            endif()
-
-            BoB_add_include_directories("$ENV{GENN_PATH}/lib/include" "$ENV{GENN_PATH}/userproject/include")
-            if(GENN_CPU_ONLY)
-                BoB_add_link_libraries("$ENV{GENN_PATH}/lib/lib/libgenn_CPU_ONLY${CMAKE_STATIC_LIBRARY_SUFFIX}")
-            else()
-                BoB_add_link_libraries("$ENV{GENN_PATH}/lib/lib/libgenn${CMAKE_STATIC_LIBRARY_SUFFIX}")
-                BoB_external_libraries(cuda)
-            endif()
-        elseif(${lib} STREQUAL cuda)
-            BoB_find_package(CUDA REQUIRED)
         elseif(${lib} STREQUAL gtest)
             find_package(GTest REQUIRED)
             BoB_add_include_directories(${GTEST_INCLUDE_DIRS})
@@ -492,6 +479,21 @@ function(BoB_third_party)
                 BoB_add_include_directories(${SHELL_OUTPUT})
             endif()
         else()
+            # Extra actions
+            if(${module} STREQUAL ev3dev-lang-cpp)
+                # Default to BrickPi3
+                if(NOT EV3DEV_PLATFORM)
+                    set(EV3DEV_PLATFORM "BRICKPI3" CACHE STRING "Target ev3dev platform (EV3/BRICKPI/BRICKPI3/PISTORMS)")
+                endif()
+                set_property(CACHE EV3DEV_PLATFORM PROPERTY STRINGS "EV3" "BRICKPI" "BRICKPI3" "PISTORMS")
+                add_definitions(-DEV3DEV_PLATFORM_${EV3DEV_PLATFORM})
+                message("EV3 platform: ${EV3DEV_PLATFORM}")
+
+                BoB_add_link_libraries(ev3dev)
+            elseif(${module} STREQUAL imgui)
+                BoB_add_link_libraries(imgui)
+            endif()
+
             # Checkout git submodules under this path
             find_package(Git REQUIRED)
             exec_or_fail(${GIT_EXECUTABLE} submodule update --init --recursive third_party/${module}
@@ -509,13 +511,6 @@ function(BoB_third_party)
 
             # Link against extra libs, if needed
             BoB_add_link_libraries(${${module}_LIBRARIES})
-
-            # Extra actions
-            if(${module} STREQUAL ev3dev-lang-cpp)
-                BoB_add_link_libraries(ev3dev)
-            elseif(${module} STREQUAL imgui)
-                BoB_add_link_libraries(imgui)
-            endif()
         endif()
     endforeach()
 endfunction()
@@ -585,3 +580,6 @@ add_definitions(
     -DENABLE_PREDEFINED_VELOCITY_UNITS
     -DENABLE_PREDEFINED_ANGULAR_VELOCITY_UNITS
 )
+
+# Look for additional CMake packages in the current folder
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})

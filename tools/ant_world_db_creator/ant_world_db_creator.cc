@@ -7,7 +7,7 @@
 #include "antworld/renderer.h"
 #include "antworld/route_continuous.h"
 #include "navigation/image_database.h"
-#include "video/opengl.h"
+#include "video/opengl/opengl.h"
 
 // Third-party includes
 #include "third_party/path.h"
@@ -50,7 +50,8 @@ protected:
     AntWorld::Renderer m_Renderer;
     AntWorld::AntAgent m_Agent;
 
-    AntWorldDatabaseCreator(const std::string &databaseName, GLFWwindow *window)
+    AntWorldDatabaseCreator(const std::string &databaseName,
+                            GLFWwindow *window, const filesystem::path &executablePath)
       : m_Database(databaseName)
       , m_Window(window)
       , m_Renderer(256, 0.001, 1000.0, 360_deg)
@@ -59,7 +60,7 @@ protected:
         BOB_ASSERT(m_Database.empty());
 
         // Create renderer
-        m_Renderer.getWorld().load("../../include/antworld/world5000_gray.bin",
+        m_Renderer.getWorld().load(executablePath / "../../resources/antworld/world5000_gray.bin",
                                    {0.0f, 1.0f, 0.0f}, {0.898f, 0.718f, 0.353f});
     }
 
@@ -94,8 +95,8 @@ protected:
 
 class GridDatabaseCreator : AntWorldDatabaseCreator {
 public:
-    GridDatabaseCreator(GLFWwindow *window)
-      : AntWorldDatabaseCreator("world5000_grid", window)
+    GridDatabaseCreator(GLFWwindow *window, const filesystem::path &executablePath)
+      : AntWorldDatabaseCreator("world5000_grid", window, executablePath)
     {}
 
     void runForGrid()
@@ -119,9 +120,11 @@ public:
 
 class RouteDatabaseCreator : AntWorldDatabaseCreator {
 public:
-    RouteDatabaseCreator(const std::string &databaseName, GLFWwindow *window,
-                         AntWorld::RouteContinuous &route)
-      : AntWorldDatabaseCreator(databaseName, window)
+    RouteDatabaseCreator(const std::string &databaseName,
+                         GLFWwindow *window,
+                         AntWorld::RouteContinuous &route,
+                         const filesystem::path &executablePath)
+      : AntWorldDatabaseCreator(databaseName, window, executablePath)
       , m_Route(route)
     {}
 
@@ -153,17 +156,7 @@ int
 main(int argc, char **argv)
 {
     auto window = AntWorld::AntAgent::initialiseWindow(RenderSize);
-    AntWorld::Renderer renderer(256, 0.001, 1000.0, 360_deg);
-    AntWorld::AntAgent agent(window.get(), renderer, RenderSize);
-
-    // Load world
-    renderer.getWorld().load("../../libantworld/world5000_gray.bin",
-                             { 0.0f, 1.0f, 0.0f },
-                             { 0.898f, 0.718f, 0.353f });
-
-    const auto checkWindow = [&window]() {
-        return !glfwWindowShouldClose(window.get());
-    };
+    const auto executablePath = filesystem::path(argv[0]).parent_path();
 
     if (argc > 1) {
         // Create route object and load route file specified by command line
@@ -179,38 +172,10 @@ main(int argc, char **argv)
             databaseName = databaseName.substr(0, pos);
         }
 
-        constexpr millimeter_t pathStep = 1_cm;
-
-        // Make vector of agent's poses
-        std::vector<Pose3<millimeter_t, degree_t>> poses;
-        for (auto distance = 0_mm; distance < route.getLength(); distance += pathStep) {
-            Pose3<millimeter_t, degree_t> pose = route.getPose(distance);
-            pose.z() = AgentHeight;
-            poses.push_back(pose);
-        }
-
-        Navigation::ImageDatabase database(databaseName);
-        auto routeRecorder = database.getRouteRecorder();
-        routeRecorder.addMetadata(agent, false, false);
-
-        // Save images
-        routeRecorder.run(agent, agent, poses, checkWindow);
+        RouteDatabaseCreator creator(databaseName, window.get(), route, executablePath);
+        creator.runForRoute();
     } else {
-        Navigation::ImageDatabase database("world5000_grid");
-
-        const millimeter_t gridSpacing = 10_cm;
-
-        // Get world bounds
-        const auto &worldMinBound = renderer.getWorld().getMinBound();
-        const auto &worldMaxBound = renderer.getWorld().getMaxBound();
-
-        // Make GridRecorder
-        Range xrange({ worldMinBound[0], worldMaxBound[0] }, gridSpacing);
-        Range yrange({ worldMinBound[1], worldMaxBound[1] }, gridSpacing);
-        auto gridRecorder = database.getGridRecorder(xrange, yrange, AgentHeight);
-        gridRecorder.addMetadata(agent, false, false);
-
-        // Save images
-        gridRecorder.run(agent, agent, checkWindow);
+        GridDatabaseCreator creator(window.get(), executablePath);
+        creator.runForGrid();
     }
 }

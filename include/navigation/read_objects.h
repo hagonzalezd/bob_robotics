@@ -1,7 +1,7 @@
 #pragma once
 
 // BoB robotics includes
-#include "pose.h"
+#include "common/pose.h"
 
 // Third-party includes
 #include "third_party/path.h"
@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace BoBRobotics {
+namespace Navigation {
 using ObjectVector = std::vector<std::vector<Vector2<units::length::millimeter_t>>>;
 
 /**!
@@ -21,5 +22,5 @@ using ObjectVector = std::vector<std::vector<Vector2<units::length::millimeter_t
  */
 ObjectVector
 readObjects(const filesystem::path &objectFilePath);
-
+} // Navigation
 } // BoBRobotics
