@@ -4,9 +4,9 @@
 #include "hid/joystick.h"
 #include "navigation/read_objects.h"
 #include "net/client.h"
-#include "vicon/udp.h"
 #include "robots/control/collision_detector.h"
 #include "robots/tank_netsink.h"
+#include "vicon/udp.h"
 #include "viz/sfml_world/arena_object.h"
 #include "viz/sfml_world/sfml_world.h"
 
