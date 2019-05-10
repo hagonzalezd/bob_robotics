@@ -3,7 +3,7 @@
 #include "common/circstat.h"
 #include "common/fsm.h"
 #include "common/main.h"
-#include "common/obstacle_circumnavigation.h"
+#include "robots/control/obstacle_circumnavigation.h"
 #include "common/read_objects.h"
 #include "common/stopwatch.h"
 #include "hid/joystick.h"

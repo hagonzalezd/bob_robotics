@@ -3,7 +3,7 @@
 // BoB robotics includes
 #include "common/arena_object.h"
 #include "common/collision.h"
-#include "common/obstacle_circumnavigation.h"
+#include "robots/control/obstacle_circumnavigation.h"
 #include "common/pose.h"
 #include "common/read_objects.h"
 #include "common/sfml_world.h"

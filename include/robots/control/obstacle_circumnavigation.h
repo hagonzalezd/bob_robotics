@@ -1,8 +1,8 @@
 #pragma once
 
 // BoB robotics includes
-#include "geometry.h"
-#include "pose.h"
+#include "common/geometry.h"
+#include "common/pose.h"
 #include "robots/control/collision_detector.h"
 #include "robots/control/tank_pid.h"
 #include "robots/positioner.h"
@@ -21,6 +21,7 @@
 #include <vector>
 
 namespace BoBRobotics {
+namespace Robots {
 using namespace units::literals;
 
 // Forward declarations
@@ -293,4 +294,5 @@ private:
         }
     }
 };
+} // Robots
 } // BoBRobotics

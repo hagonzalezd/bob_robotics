@@ -1,5 +1,5 @@
 // BoB robotics includes
-#include "common/obstacle_circumnavigation.h"
+#include "robots/control/obstacle_circumnavigation.h"
 #include "common/pose.h"
 #include "common/sfml_world.h"
 #include "robots/robot_positioner.h"

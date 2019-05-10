@@ -3,10 +3,10 @@
 #include "common/background_exception_catcher.h"
 #include "common/logging.h"
 #include "common/main.h"
-#include "common/obstacle_circumnavigation.h"
+#include "robots/control/obstacle_circumnavigation.h"
 #include "common/pose.h"
-#include "common/read_objects.h"
 #include "hid/joystick.h"
+#include "navigation/read_objects.h"
 #include "navigation/image_database.h"
 #include "net/client.h"
 #include "robots/control/robot_positioner.h"
@@ -52,7 +52,7 @@ filesystem::path getNewDatabaseName()
 // Take the second highest & lowest x/y values as the limits, so we're always within bounds
 auto getArenaLimits()
 {
-    auto lims = readObjects("arena_limits.yaml").at(0);
+    auto lims = Navigation::readObjects("arena_limits.yaml").at(0);
     BOB_ASSERT(lims.size() == 4);
 
     std::sort(lims.begin(), lims.end(), [](const auto &vec1, const auto &vec2) {
@@ -118,12 +118,12 @@ bob_main(int argc, char **argv)
     Video::NetSource video(client);
     cv::Mat fr;
 
-    const ObjectVector objects = [&]() {
+    const Navigation::ObjectVector objects = [&]() {
         if (argc > 1) {
             LOG_INFO << "Loading objects from " << argv[1];
-            return readObjects(argv[1]);
+            return Navigation::readObjects(argv[1]);
         } else {
-            return ObjectVector{};
+            return Navigation::ObjectVector{};
         }
     }();
     Robots::CollisionDetector collisionDetector(robotDimensions, objects, 20_cm);
