@@ -1,6 +1,7 @@
 #include "common.h"
 
 // BoB robotics includes
+#include "common/background_exception_catcher.h"
 #include "common/main.h"
 #include "hid/joystick.h"
 #include "net/client.h"

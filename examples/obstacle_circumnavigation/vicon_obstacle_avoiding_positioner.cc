@@ -3,12 +3,12 @@
 #include "common/circstat.h"
 #include "common/fsm.h"
 #include "common/main.h"
-#include "robots/control/obstacle_circumnavigation.h"
-#include "common/read_objects.h"
 #include "common/stopwatch.h"
 #include "hid/joystick.h"
+#include "navigation/read_objects.h"
 #include "net/client.h"
-#include "robots/robot_positioner.h"
+#include "robots/control/obstacle_circumnavigation.h"
+#include "robots/control/robot_positioner.h"
 #include "robots/tank_netsink.h"
 #include "vicon/udp.h"
 
@@ -75,7 +75,7 @@ public:
                      StartSlowingDownAt,
                      PositionerMinSpeed,
                      PositionerMaxSpeed)
-      , m_CollisionDetector{ getRobotDimensions(m_Tank), readObjects("objects.yaml"), 30_cm, 1_cm }
+      , m_CollisionDetector{ getRobotDimensions(m_Tank), Navigation::readObjects("objects.yaml"), 30_cm, 1_cm }
       , m_Circumnavigator{ m_Tank, m_ViconObject, m_CollisionDetector }
       , m_AvoidingPositioner(m_Positioner, m_Circumnavigator)
       , m_StateMachine(this, InvalidState)
@@ -200,9 +200,9 @@ private:
     Vicon::ObjectReference<> m_ViconObject;
     HID::Joystick m_Joystick;
     Robots::RobotPositioner<Vicon::ObjectReference<>> m_Positioner;
-    CollisionDetector m_CollisionDetector;
-    ObstacleCircumnavigator<Vicon::ObjectReference<>> m_Circumnavigator;
-    ObstacleAvoidingPositioner<Robots::RobotPositioner<Vicon::ObjectReference<>>, Vicon::ObjectReference<>> m_AvoidingPositioner;
+    Robots::CollisionDetector m_CollisionDetector;
+    Robots::ObstacleCircumnavigator<Vicon::ObjectReference<>> m_Circumnavigator;
+    Robots::ObstacleAvoidingPositioner<Robots::RobotPositioner<Vicon::ObjectReference<>>, Vicon::ObjectReference<>> m_AvoidingPositioner;
     FSM<State> m_StateMachine;
     Stopwatch m_PrintTimer;
     BackgroundExceptionCatcher m_Catcher;
