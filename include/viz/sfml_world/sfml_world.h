@@ -26,23 +26,9 @@ class CrossShape
   : public sf::Drawable
 {
 public:
-    CrossShape(const sf::Vector2f &position, float size, float thickness, const sf::Color &colour)
-        : m_Horizontal({ size, thickness })
-        , m_Vertical({ thickness, size })
-    {
-        m_Horizontal.setOrigin(size / 2.f, thickness / 2.f);
-        m_Vertical.setOrigin(thickness / 2.f, size / 2.f);
-        m_Horizontal.setPosition(position);
-        m_Vertical.setPosition(position);
-        m_Horizontal.setFillColor(colour);
-        m_Vertical.setFillColor(colour);
-    }
+    CrossShape(const sf::Vector2f &position, float size, float thickness, const sf::Color &colour);
 
-    virtual void draw(sf::RenderTarget &target, sf::RenderStates states) const override
-    {
-        target.draw(m_Horizontal, states);
-        target.draw(m_Vertical, states);
-    }
+    virtual void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
 
 private:
     sf::RectangleShape m_Horizontal, m_Vertical;
