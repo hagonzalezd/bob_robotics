@@ -1,8 +1,9 @@
 #pragma once
 
 // BoB robotics includes
-#include "common/thread.h"
+#include "common/threadable.h"
 #include "net/socket.h"
+#include "socket.h"
 
 // Standard C++ includes
 #include <functional>
