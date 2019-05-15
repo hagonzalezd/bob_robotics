@@ -147,7 +147,7 @@ bob_main(int argc, char **argv)
         catcher.check();
 
         // Update display
-        const auto pose = vicon.getObjectData(0).getPose();
+        const auto pose = vicon.getObjectData().getPose();
         car.setPose(pose);
         display.update(objectShapes, imagePoints, car);
 
@@ -168,7 +168,7 @@ bob_main(int argc, char **argv)
         catcher.check();
 
         // Update display
-        const auto pose = vicon.getObjectData(0).getPose();
+        const auto pose = vicon.getObjectData().getPose();
         car.setPose(pose);
         display.update(objectShapes, car);
 
@@ -177,7 +177,7 @@ bob_main(int argc, char **argv)
             if (!vicon.connected()) {
                 LOG_ERROR << "Still waiting for Vicon system";
             } else {
-                auto viconObject = vicon.getObjectReference("EV3");
+                auto viconObject = vicon.getObjectReference("BrickPi");
 
                 // Object which drives robot to position
                 auto positioner = Robots::createRobotPositioner(tank,
