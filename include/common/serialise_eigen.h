@@ -1,7 +1,7 @@
 #pragma once
 
 // BoB robotics
-#include "assert.h"
+#include "macros.h"
 
 // OpenCV
 #include <opencv2/opencv.hpp>

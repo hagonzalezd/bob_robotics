@@ -41,8 +41,8 @@ public:
 
 private:
     MotorType m_MotorLeft, m_MotorRight;
-    const int m_MaxSpeedTachos, m_TachoCountPerRotation;
     Stopwatch m_MotorStatusTimer;
+    const int m_MaxSpeedTachos, m_TachoCountPerRotation;
 
     meters_per_second_t tachoToSpeed(int tachos) const;
 };

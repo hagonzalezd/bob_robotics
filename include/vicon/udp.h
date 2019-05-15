@@ -1,8 +1,9 @@
 #pragma once
 
 // BoB robotics includes
-#include "common/assert.h"
 #include "common/circstat.h"
+#include "common/logging.h"
+#include "common/macros.h"
 #include "common/pose.h"
 #include "common/stopwatch.h"
 #include "os/net.h"
@@ -19,6 +20,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace BoBRobotics
@@ -38,9 +40,10 @@ class ObjectData
     using millimeter_t = units::length::millimeter_t;
 
 public:
-    ObjectData(const std::string &objectName)
-      : m_Name(objectName)
-    {}
+    ObjectData(const char *objectName)
+    {
+        strcpy(m_Name, objectName);
+    }
 
     //----------------------------------------------------------------------------
     // Public API
@@ -68,8 +71,7 @@ public:
         return m_Pose;
     }
 
-    const std::string &getName() const;
-
+    const char *getName() const;
     Stopwatch::Duration timeSinceReceived() const;
 
 private:
@@ -77,7 +79,7 @@ private:
     // Members
     //----------------------------------------------------------------------------
     uint32_t m_FrameNumber = 0;
-    const std::string &m_Name;
+    char m_Name[24];
     Pose3<millimeter_t, radian_t> m_Pose;
     Stopwatch m_ReceivedTimer;
 };
@@ -99,8 +101,8 @@ class ObjectDataVelocity : public ObjectData
     using second_t = units::time::millisecond_t;
 
 public:
-    ObjectDataVelocity(const std::string &name)
-      : ObjectData(name)
+    ObjectDataVelocity(const char *objectName)
+      : ObjectData(objectName)
     {}
 
     //----------------------------------------------------------------------------
@@ -181,14 +183,13 @@ class ObjectReference
 
 public:
     ObjectReference(UDPClient<ObjectDataType> &client,
-                    const size_t id,
-                    const std::string &objectName,
+                    const char *objectName,
                     const Stopwatch::Duration timeoutDuration)
-        : m_Client(client)
-        , m_Id(id)
-        , m_Name(objectName)
-        , m_TimeoutDuration(timeoutDuration)
-    {}
+      : m_Client(client)
+      , m_TimeoutDuration(timeoutDuration)
+    {
+        std::strcpy(m_Name, objectName);
+    }
 
     template<typename LengthUnit = millimeter_t>
     Vector3<LengthUnit> getPosition() const
@@ -210,7 +211,7 @@ public:
                                             data.template getAttitude<AngleUnit>());
     }
 
-    const auto &getName() const { return m_Name; }
+    const std::string &getName() const { return m_Name; }
 
     auto timeSinceReceived() const
     {
@@ -219,7 +220,7 @@ public:
 
     ObjectDataType getData() const
     {
-        const auto objectData = m_Client.getObjectData(m_Id);
+        const auto objectData = m_Client.getObjectData(m_Name);
         if (objectData.timeSinceReceived() > m_TimeoutDuration) {
             throw TimedOutError();
         }
@@ -228,8 +229,7 @@ public:
 
 private:
     UDPClient<ObjectDataType> &m_Client;
-    const size_t m_Id;
-    const std::string &m_Name;
+    char m_Name[24];
     const Stopwatch::Duration m_TimeoutDuration;
 };
 
@@ -242,28 +242,51 @@ class UDPClient
 {
 private:
     /*
+     * A simple wrapper around char[N]. We need this because we use a fixed-size
+     * char array as a key for m_ObjectData and using a naked char[N] won't work
+     * (because it doesn't have a constructor).
+     */
+#define COMMA ,
+    BOB_PACKED(template<size_t N>
+    struct CharArray
+    {
+        char data[N];
+
+        CharArray(const char *str)
+        {
+            strcpy(data COMMA str);
+        }
+
+        operator char *()
+        {
+            return data;
+        }
+
+        operator const char *() const
+        {
+            return data;
+        }
+
+        bool operator==(const CharArray<N> &other)
+        {
+            return strcmp(data COMMA other) == 0;
+        }
+    });
+#undef COMMA
+
+    /*
      * NB: The first member of this struct *should* be object ID, but the
      * Vicon system seems to just give a value of zero for every item, which
      * isn't terribly helpful. So instead we distinguish objects based on their
      * names.
      */
-#ifdef _MSVC
-#pragma pack(push, 1)
-    struct RawObjectData {
+    BOB_PACKED(struct RawObjectData {
         uint8_t unused;
         uint16_t itemDataSize;
-        char objectName[24];
-        double position[3], attitude[3];
-    };
-    #pragma pack(pop)
-#else
-    struct __attribute__((__packed__)) RawObjectData {
-        uint8_t unused;
-        uint16_t itemDataSize;
-        char objectName[24];
-        std::array<double, 3> position, attitude;
-    };
-#endif
+        CharArray<24> objectName;
+        double position[3];
+        double attitude[3];
+    });
 
 public:
     UDPClient() = default;
@@ -334,45 +357,45 @@ public:
         return m_ObjectData.size();
     }
 
-    size_t findObjectID(const std::string &name)
-    {
-        waitUntilConnected();
-
-        // Search for object with name
-        std::lock_guard<std::mutex> guard(m_ObjectMutex);
-        const auto objIter = std::find(m_ObjectNames.cbegin(), m_ObjectNames.cend(), name);
-
-        // If object wasn't found, raise error
-        if(objIter == m_ObjectNames.cend()) {
-            throw std::out_of_range("Cannot find object '" + name + "'");
-        }
-        // Otherwise, return its index i.e. object ID
-        else {
-            return static_cast<size_t>(std::distance(m_ObjectNames.cbegin(), objIter));
-        }
-    }
-
     //! Get current pose information for specified object
-    ObjectDataType getObjectData(size_t id)
+    ObjectDataType getObjectData(const std::string &name)
     {
         waitUntilConnected();
+
+        // Convert to fixed-size char array
+        BOB_ASSERT(name.size() < 24);
+        char bytes[24];
+        strcpy(bytes, name.c_str());
+
         std::lock_guard<std::mutex> guard(m_ObjectMutex);
-        return m_ObjectData.at(id);
+        return m_ObjectData.at(bytes);
     }
+
+     //! Get current pose information for first object
+     ObjectDataType getObjectData()
+     {
+         waitUntilConnected();
+         std::lock_guard<std::mutex> guard(m_ObjectMutex);
+         return m_ObjectData.begin()->second;
+     }
+
+     auto getObjectReference(Stopwatch::Duration timeoutDuration = 10s)
+     {
+         waitUntilConnected();
+         std::lock_guard<std::mutex> guard(m_ObjectMutex);
+         return ObjectReference<ObjectDataType>(*this,
+                                                m_ObjectData.begin()->first,
+                                                timeoutDuration);
+     }
 
     //! Returns an object whose pose is updated by the Vicon system over time
-    auto getObjectReference(size_t id,
-                            Stopwatch::Duration timeoutDuration = 10s)
-    {
-        waitUntilConnected();
-        return ObjectReference<ObjectDataType>(*this, id, m_ObjectNames[id], timeoutDuration);
-    }
-
     auto getObjectReference(const std::string& name,
                             Stopwatch::Duration timeoutDuration = 10s)
     {
-        const auto id = findObjectID(name);
-        return ObjectReference<ObjectDataType>(*this, id, m_ObjectNames[id], timeoutDuration);
+        waitUntilConnected();
+        return ObjectReference<ObjectDataType>(*this,
+                                               name.c_str(),
+                                               timeoutDuration);
     }
 
     bool connected() const { return m_IsConnected; }
@@ -384,19 +407,12 @@ private:
     void updateObjectData(uint32_t frameNumber, const RawObjectData &data)
     {
         // Check if we already have a data structure for this object...
-        const auto pos = std::find_if(m_ObjectNames.cbegin(), m_ObjectNames.cend(), [&data](const auto &name) {
-            return strcmp(data.objectName, name.c_str()) == 0;
-        });
+        auto pos = m_ObjectData.find(data.objectName);
 
         // ...and, if not, create one
-        size_t id;
-        if (pos == m_ObjectNames.cend()) {
-            std::cout << "Vicon: Found new object: " << data.objectName << std::endl;
-            id = m_ObjectData.size();
-            m_ObjectNames.emplace_back(data.objectName);
-            m_ObjectData.emplace_back(m_ObjectNames.back());
-        } else {
-            id = static_cast<size_t>(std::distance(m_ObjectNames.cbegin(), pos));
+        if (pos == m_ObjectData.cend()) {
+            LOGI << "Vicon: Found new object: " << data.objectName;
+            pos = m_ObjectData.emplace(data.objectName, ObjectDataType { data.objectName }).first;
         }
 
         /*
@@ -408,13 +424,13 @@ private:
          */
         using namespace units::length;
         using namespace units::angle;
-        m_ObjectData[id].update(frameNumber,
-                                { { millimeter_t(data.position[0]),
-                                    millimeter_t(data.position[1]),
-                                    millimeter_t(data.position[2])},
-                                  { radian_t(data.attitude[2]),
-                                    radian_t(data.attitude[0]),
-                                    radian_t(data.attitude[1]) } });
+        pos->second.update(frameNumber,
+                           { { millimeter_t(data.position[0]),
+                               millimeter_t(data.position[1]),
+                               millimeter_t(data.position[2]) },
+                           { radian_t(data.attitude[2]),
+                               radian_t(data.attitude[0]),
+                               radian_t(data.attitude[1]) } });
     }
 
     void readThread(int socket)
@@ -452,9 +468,9 @@ private:
                 // Lock mutex
                 std::lock_guard<std::mutex> guard(m_ObjectMutex);
 
-                const auto objectData = reinterpret_cast<RawObjectData *>(&buffer[5]);
+                auto objectData = reinterpret_cast<RawObjectData *>(&buffer[5]);
+                objectData->objectName[23] = '\0'; // Make sure string is null-terminated
                 std::for_each(objectData, &objectData[itemsInBlock], [&frameNumber, this](auto &data) {
-                    data.objectName[23] = '\0';
                     BOB_ASSERT(data.itemDataSize == 72);
                     updateObjectData(frameNumber, data);
                 });
@@ -482,12 +498,82 @@ private:
         }
     }
 
+    struct HashChar {
+        //--------------------------------------------------------------------------
+        /*! \brief This function returns the 32-bit hash of a string
+        */
+        //--------------------------------------------------------------------------
+        //! https://stackoverflow.com/questions/19411742/what-is-the-default-hash-function-used-in-c-stdunordered-map
+        //! suggests that libstdc++ uses MurmurHash2 so this seems as good a bet as any
+        //! MurmurHash2, by Austin Appleby
+        //! It has a few limitations -
+        //! 1. It will not work incrementally.
+        //! 2. It will not produce the same results on little-endian and big-endian
+        //!    machines.
+        template<size_t N>
+        uint32_t operator()(const CharArray<N> &str) const
+        {
+            // 'm' and 'r' are mixing constants generated offline.
+            // They're not really 'magic', they just happen to work well.
+            const uint32_t m = 0x5bd1e995;
+            const unsigned int r = 24;
+
+            // String length
+            size_t len = N;
+
+            // Initialize the hash to a 'random' value
+            uint32_t h = 0xc70f6907 ^ (uint32_t)len;
+
+            // Mix 4 bytes at a time into the hash
+            const char *data = str;
+            while (len >= 4) {
+                // **NOTE** one of the assumptions of the original MurmurHash2 was that
+                // "We can read a 4-byte value from any address without crashing".
+                // Bad experiance tells me this may not be the case on ARM so use memcpy
+                uint32_t k;
+                memcpy(&k, data, 4);
+
+                k *= m;
+                k ^= k >> r;
+                k *= m;
+
+                h *= m;
+                h ^= k;
+
+                data += 4;
+                len -= 4;
+            }
+
+            // Handle the last few bytes of the input array
+            switch(len)
+            {
+                case 3: h ^= data[2] << 16; // falls through
+                case 2: h ^= data[1] << 8;  // falls through
+                case 1: h ^= data[0];
+                        h *= m;             // falls through
+            };
+
+            // Do a few final mixes of the hash to ensure the last few
+            // bytes are well-incorporated.
+            h ^= h >> 13;
+            h *= m;
+            h ^= h >> 15;
+
+            return h;
+        }
+    };
+
     //----------------------------------------------------------------------------
     // Members
     //----------------------------------------------------------------------------
     std::mutex m_ObjectMutex;
-    std::vector<ObjectDataType> m_ObjectData;
-    std::vector<std::string> m_ObjectNames;
+
+    /*
+     * We use a fixed-size char array as a key, because if we used std::string
+     * then we could get a heap allocation with every data packet received for
+     * longer object names.
+     */
+    std::unordered_map<CharArray<24>, ObjectDataType, HashChar> m_ObjectData;
     std::atomic<bool> m_ShouldQuit;
     std::timed_mutex m_ConnectionMutex;
     bool m_IsConnected = false;
