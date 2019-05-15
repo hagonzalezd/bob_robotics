@@ -53,15 +53,16 @@ EV3::tank(float left, float right)
 {
     setWheelSpeeds(left, right);
 
+    // NB: We are driving the motors backwards, as the camera is on the rear
     const float maxTachos = getMaximumSpeedProportion() * m_MaxSpeedTachos;
-    m_MotorLeft.set_speed_sp(maxTachos * left);
-    m_MotorRight.set_speed_sp(maxTachos * right);
+    m_MotorLeft.set_speed_sp(-maxTachos * left);
+    m_MotorRight.set_speed_sp(-maxTachos * right);
     m_MotorLeft.run_forever();
     m_MotorRight.run_forever();
 
     // Every 3s check if the motors are overloaded
     using namespace std::literals;
-    if (m_MotorStatusTimer.elapsed() > 3s) {
+    if (!m_MotorStatusTimer.started() || m_MotorStatusTimer.elapsed() > 3s) {
         // Restart timer
         m_MotorStatusTimer.start();
 
