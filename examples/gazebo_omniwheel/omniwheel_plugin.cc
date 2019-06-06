@@ -1,85 +1,103 @@
-#include <algorithm>
+// BoB robotics includes
+#include "common/circstat.h"
+
+// Third-party includes
+#include "third_party/units.h"
+
+// Boost
 #include <boost/bind.hpp>
-#include <chrono>
+
+// Gazebo
+#include <gazebo/common/Plugin.hh>
+#include <gazebo/common/common.hh>
+#include <gazebo/gazebo.hh>
+#include <gazebo/physics/physics.hh>
+
+// Standard C includes
 #include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gazebo/gazebo.hh>
-#include <gazebo/common/Plugin.hh>
-#include <gazebo/physics/physics.hh>
-#include <gazebo/common/common.hh>
+
+// Standard C++ includes
+#include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <vector>
 
-#define L 0.04 // distance between body center and wheel center
-#define r 0.01905 // wheel radius
+using namespace BoBRobotics;
+using namespace units::literals;
+using namespace units::math;
+using namespace units::angle;
+using namespace units::frequency;
+using namespace units::length;
+using namespace units::angular_velocity;
+using namespace units::velocity;
+using namespace units::time;
 
-#define pi30 0.1047197551196597705355242034774843062905347323976457118988037109375 // long double thirty = 30; long double mOne = -1; printf("%1.70Lf\n", (long double) acos(mOne) / thirty);
-#define pi12 1.5707963267948965579989817342720925807952880859375 // long double two = 2; long double mOne = -1; printf("%1.70Lf\n", (long double) acos(mOne) / two);
-#define pi 3.141592653589793115997963468544185161590576171875 // long double mOne = -1; printf("%1.70Lf\n", (long double) acos(mOne));
-#define pi2 6.28318530717958623199592693708837032318115234375 // long double two = 2; long double mOne = -1; printf("%1.70Lf\n", (long double) two * acos(mOne));
-#define sqrt3 1.732050807568877193176604123436845839023590087890625 // long double three = 3; printf("%1.70Lf\n", (long double) sqrt(three));
-#define sqrt32 0.8660254037844385965883020617184229195117950439453125 // long double two = 2; long double three = 3; printf("%1.70Lf\n", (sqrt(three) / two));
-#define Vmax 1.0 // set by experiments (m/s)
-#define omegamax 50.0 // set by experiments (rad/s)
-#define P 5.0 // PID
-#define I 0.0005 // PID
-#define stopDistance 0.001
-#define stopAngle pi30
+constexpr meter_t halfWidth = 4_cm;
+constexpr meter_t wheelRadius = 1.905_cm;
+constexpr radian_t pirad{ pi() };
 
-double Vx;
-double Vy;
-double Vxm;
-double Vym;
-double Vxw;
-double Vyw;
-double VxAbs;
-double VyAbs;
-double VxmTarget;
-double VymTarget;
-double VxwTarget;
-double VywTarget;
-double omegap;
-double Vback;
-double Vleft;
-double Vright;
-double VbackTarget;
-double VleftTarget;
-double VrightTarget;
-double omegapL;
-double omegapLVxm2;
-double sqrtVym2;
-double Vxm2;
-double Vback3;
-double Vleft3;
-double Vright3;
-double VxTarget;
-double VyTarget;
-double omegapTarget;
-double x = 0;
-double y = 0;
-double xm = 0;
-double ym = 0;
-double xOffset = 0;
-double yOffset = 0;
-double xTarget = 0;
-double yTarget = 0;
-double xw = 0;
-double yw = 0;
-double xError;
-double yError;
-double xErrorI;
-double yErrorI;
-double theta = 0;
-double thetaError;
-double thetaErrorI;
-double thetaOffset = 0;
-double thetaTarget = 0;
-double timeElapsed = 0;
-double timeLast;
-double timeNow = 0;
+constexpr hertz_t P = 5_Hz;
+constexpr hertz_t I = 0.0005_Hz;
+constexpr meters_per_second_t Vmax = 1_mps;
+constexpr radians_per_second_t omegamax = 50_rad_per_s;
+constexpr meter_t stopDistance = 1_mm;
+constexpr radian_t stopAngle = 12_deg;
+
+meters_per_second_t Vx;
+meters_per_second_t Vy;
+meters_per_second_t Vxm;
+meters_per_second_t Vym;
+meters_per_second_t Vxw;
+meters_per_second_t Vyw;
+meters_per_second_t VxAbs;
+meters_per_second_t VyAbs;
+meters_per_second_t VxmTarget;
+meters_per_second_t VymTarget;
+meters_per_second_t VxwTarget;
+meters_per_second_t VywTarget;
+radians_per_second_t omegap;
+meters_per_second_t Vback;
+meters_per_second_t Vleft;
+meters_per_second_t Vright;
+meters_per_second_t VbackTarget;
+meters_per_second_t VleftTarget;
+meters_per_second_t VrightTarget;
+radians_per_second_t omegapL;
+radians_per_second_t omegapLVxm2;
+meters_per_second_t sqrtVym2;
+meters_per_second_t Vxm2;
+meters_per_second_t Vback3;
+meters_per_second_t Vleft3;
+meters_per_second_t Vright3;
+meters_per_second_t VxTarget;
+meters_per_second_t VyTarget;
+radians_per_second_t omegapTarget;
+meter_t x = 0_m;
+meter_t y = 0_m;
+meter_t xm = 0_m;
+meter_t ym = 0_m;
+meter_t xOffset = 0_m;
+meter_t yOffset = 0_m;
+meter_t xTarget = 0_m;
+meter_t yTarget = 0_m;
+meter_t xw = 0_m;
+meter_t yw = 0_m;
+meter_t xError;
+meter_t yError;
+meter_t xErrorI;
+meter_t yErrorI;
+radian_t theta = 0_rad;
+radian_t thetaError;
+radian_t thetaErrorI;
+radian_t thetaOffset = 0_rad;
+radian_t thetaTarget = 0_rad;
+second_t timeElapsed = 0_s;
+second_t timeLast;
+second_t timeNow = 0_s;
 double backAngleElapsed;
 double backAngleLast;
 double backAngleNow = 0;
@@ -89,61 +107,68 @@ double leftAngleNow = 0;
 double rightAngleElapsed;
 double rightAngleLast;
 double rightAngleNow = 0;
-double phi;
-double Vlow;
-double Vhigh;
+radian_t phi;
+meters_per_second_t Vlow;
+meters_per_second_t Vhigh;
 double scale;
 
-class Point {
+class Point
+{
+private:
+    static meter_t w;
 
-    public: double x;
+public:
+    meter_t x, y;
 
-    public: double y;
-
-    private: static double w;
-
-    public: void offset(double x, double y) {
+    void offset(meter_t x, meter_t y)
+    {
         this->x += x;
         this->y += y;
     }
 
-    public: void rotate(double theta) {
-              w = (std::cos(theta) * this->y) + (std::sin(theta) * this->x);
-        this->x = (std::cos(theta) * this->x) - (std::sin(theta) * this->y);
+    void rotate(radian_t theta)
+    {
+        w = (cos(theta) * this->y) + (sin(theta) * this->x);
+        this->x = (cos(theta) * this->x) - (sin(theta) * this->y);
         this->y = w;
     }
 
-    public: Point() {}
+    Point()
+    {}
 
-    public: Point(const Point& p) {
+    Point(const Point &p)
+    {
         x = p.x;
         y = p.y;
     }
 
-    public: Point(double x, double y) {
+    Point(meter_t x, meter_t y)
+    {
         this->x = x;
         this->y = y;
     }
 
-    public: Point(Point p, double xOffset, double yOffset) {
+    Point(Point p, meter_t xOffset, meter_t yOffset)
+    {
         x = p.x + xOffset;
         y = p.y + yOffset;
     }
 };
 
 std::vector<Point> points;
-std::vector<double> angles;
+std::vector<radian_t> angles;
 
-enum Movements {
-    MOVEMENT_DIRECT,
-    MOVEMENT_DIRECT_M,
-    MOVEMENT_DIRECT_W,
-    MOVEMENT_NONE,
-    MOVEMENT_ABSOLUTE_M,
-    MOVEMENT_ABSOLUTE_W,
-    MOVEMENT_BEZIER_W
+enum class Movement
+{
+    Direct,
+    DirectM,
+    DirectW,
+    None,
+    AbsoluteM,
+    AbsoluteW,
+    BezierW
 };
-Movements movement = MOVEMENT_NONE;
+Movement movement = Movement::None;
 
 long long binomialCoefficient_c;
 long long binomialCoefficient_i;
@@ -151,21 +176,23 @@ long long binomialCoefficient_i;
 /**
  * source:
  * https://en.wikipedia.org/wiki/Binomial_coefficient
- * @param n the number that goes above
+ * @param n the number that goes above`
  * @param k the number that goes below
  * @return
  */
-long long binomialCoefficient(long long n, long long k) {
+long long
+binomialCoefficient(long long n, long long k)
+{
     if ((k < 0) || (k > n))
         return 0;
     if ((k == 0) || (k == n))
         return 1;
-    k = std::min(k, n - k);// take advantage of symmetry
+    k = std::min(k, n - k); // take advantage of symmetry
     binomialCoefficient_c = 1;
     for (long binomialCoefficient_i = 0;
-     binomialCoefficient_i < k; binomialCoefficient_i++)
-        binomialCoefficient_c = binomialCoefficient_c
-         * (n - binomialCoefficient_i) / (binomialCoefficient_i + 1);
+         binomialCoefficient_i < k;
+         binomialCoefficient_i++)
+        binomialCoefficient_c = binomialCoefficient_c * (n - binomialCoefficient_i) / (binomialCoefficient_i + 1);
     return binomialCoefficient_c;
 }
 
@@ -175,25 +202,28 @@ long long Bezier_nT;
 long long Bezier_nR;
 long long Bezier_i;
 double Bezier_B;
-double Bezier_pX;
-double Bezier_pY;
-double Bezier_pTheta;
+meter_t Bezier_pX, Bezier_pY;
+radian_t Bezier_pTheta;
 
-double Bezier_B_(double Bezier_n) {
+double
+Bezier_B_(double Bezier_n)
+{
     return ((double) binomialCoefficient(Bezier_n, Bezier_i))
-         * std::pow((double) Bezier_t, (double) Bezier_i)
-         * std::pow(1.0 - Bezier_t, (double) (Bezier_n - Bezier_i));
+            * std::pow((double) Bezier_t, (double) Bezier_i)
+            * std::pow(1.0 - Bezier_t, (double) (Bezier_n - Bezier_i));
 }
 
-void Bezier() {
-    Bezier_pX = 0;
-    Bezier_pY = 0;
+void
+Bezier()
+{
+    Bezier_pX = 0_m;
+    Bezier_pY = 0_m;
     for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
         Bezier_B = Bezier_B_(Bezier_nT);
         Bezier_pX += points[Bezier_i].x * Bezier_B;
         Bezier_pY += points[Bezier_i].y * Bezier_B;
     }
-    Bezier_pTheta = 0;
+    Bezier_pTheta = 0_rad;
     for (Bezier_i = 0; Bezier_i <= Bezier_nR; Bezier_i++) {
         Bezier_pTheta += angles[Bezier_i] * Bezier_B_(Bezier_nR);
     }
@@ -206,10 +236,12 @@ void Bezier() {
  * before or immediately after the previous one
  * and a continuous movement is not desired.
  */
-void resetErrors() {
-    xErrorI = 0;
-    yErrorI = 0;
-    thetaErrorI = 0;
+void
+resetErrors()
+{
+    xErrorI = 0_m;
+    yErrorI = 0_m;
+    thetaErrorI = 0_rad;
 }
 
 /**
@@ -217,13 +249,15 @@ void resetErrors() {
  * relative to the mobile platform's frame
  * from the wheels velocities.
  */
-void forwardKinematicsMobile() {
+void
+forwardKinematicsMobile()
+{
     Vleft3 = Vleft / 3.0;
     Vback3 = Vback / 3.0;
     Vright3 = Vright / 3.0;
     Vxm = (2 * Vback3) - Vleft3 - Vright3;
-    Vym = (sqrt3 * Vright3) - (sqrt3 * Vleft3);
-    omegap = (Vleft3 + Vback3 + Vright3) / L;
+    Vym = sqrt(3.0) * (Vright3 - Vleft3);
+    omegap = getAngularVelocity(Vleft3 + Vback3 + Vright3, halfWidth);
 }
 
 /**
@@ -233,10 +267,12 @@ void forwardKinematicsMobile() {
  *
  * Also runs forwardKinematicsMobile().
  */
-void forwardKinematicsWorld() {
+void
+forwardKinematicsWorld()
+{
     forwardKinematicsMobile();
-    Vxw = (std::cos(theta) * Vxm) - (std::sin(theta) * Vym);
-    Vyw = (std::cos(theta) * Vym) + (std::sin(theta) * Vxm);
+    Vxw = (cos(theta) * Vxm) - (sin(theta) * Vym);
+    Vyw = (cos(theta) * Vym) + (sin(theta) * Vxm);
 }
 
 /**
@@ -244,7 +280,9 @@ void forwardKinematicsWorld() {
  * @param maximumValue
  * @return
  */
-double getRandom(double maximumValue) {
+double
+getRandom(double maximumValue)
+{
     return (((double) std::rand()) / ((double) RAND_MAX)) * maximumValue;
 }
 
@@ -253,14 +291,16 @@ double getRandom(double maximumValue) {
  * from the mobile platform's velocities
  * relative to the mobile platform's frame.
  */
-void inverseKinematicsMobile() {
-    omegapL = omegap * L;
-    sqrtVym2 = sqrt32 * Vym;
+void
+inverseKinematicsMobile()
+{
+    omegapL = omegap * halfWidth.value();
+    sqrtVym2 = Vym * sqrt(3.0) / 2.0;
     Vxm2 = Vxm / 2.0;
-    omegapLVxm2 = omegapL - Vxm2;
-    Vleft  = omegapLVxm2 - sqrtVym2;
-    Vback  = omegapL + Vxm;
-    Vright = omegapLVxm2 + sqrtVym2;
+    omegapLVxm2 = radians_per_second_t{ omegapL() - Vxm2() };
+    Vleft = meters_per_second_t{ omegapLVxm2() - sqrtVym2() };
+    Vback = meters_per_second_t{ omegapL() + Vxm() };
+    Vright = meters_per_second_t{ omegapLVxm2() + sqrtVym2() };
 }
 
 /**
@@ -270,544 +310,563 @@ void inverseKinematicsMobile() {
  *
  * Also runs inverseKinematicsMobile().
  */
-void inverseKinematicsWorld() {
-    Vxm = (std::cos(theta) * Vxw) + (std::sin(theta) * Vyw);
-    Vym = (std::cos(theta) * Vyw) - (std::sin(theta) * Vxw);
+void
+inverseKinematicsWorld()
+{
+    Vxm = (cos(theta) * Vxw) + (sin(theta) * Vyw);
+    Vym = (cos(theta) * Vyw) - (sin(theta) * Vxw);
     inverseKinematicsMobile();
 }
 
-bool isStopPose() {
-    return (std::abs(xError) < stopDistance)
-     && (std::abs(yError) < stopDistance)
-     && (std::abs(thetaError) < stopAngle);
-}
-
-double normalizeRadian(double radian) {
-    radian = fmod(radian, pi2);
-    if (radian < 0) radian += pi2;
-    return radian;
+bool
+isStopPose()
+{
+    return (abs(xError) < stopDistance) && (abs(yError) < stopDistance) && (abs(thetaError) < stopAngle);
 }
 
 namespace gazebo {
 
-    class OmniPlatformPlugin : public ModelPlugin {
+class OmniPlatformPlugin : public ModelPlugin
+{
+public:
+    /**
+     * Movement for desired pose in mobile platform's frame.
+     *
+     * Translates the desired pose in the mobile platform's frame
+     * to the world's frame and moves according to the world's frame.
+     * Keep in mind that how the mobile platform reaches the target theta
+     * will affect the platform's position in it's own frame,
+     * and that position can't be predicted. Also remember
+     * that you can change the value of the platform's pose in either frame.
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementAbsoluteM(meter_t x, meter_t y, radian_t theta)
+    {
+        // distance to be traversed in the mobile platform's frame
+        xTarget = x - xm;
+        yTarget = y - ym;
+        // distance rotated to the direction
+        // to be traversed in the world's frame
+        x = (cos(theta) * xTarget) - (sin(theta) * yTarget);
+        y = (cos(theta) * yTarget) + (sin(theta) * xTarget);
+        // rotated distance added to current world's frame position
+        xTarget = xw + x;
+        yTarget = yw + y;
+        thetaTarget = theta;
+        movement = Movement::AbsoluteW;
+        updateIndicator();
+    }
 
-        private: physics::JointPtr backJoint;
+    /**
+     * Random movement for desired pose in mobile platform's frame
+     *
+     * At the end of the movement, the mobile platform's x, y and theta
+     * will be the same as the parameters. However, the position
+     * in the world frame will depend on how theta will vary
+     * from it's current value to the target value, and can't be predicted.
+     * It's preferred to use fireMovementPoseM(),
+     * unless you know what you're doing.
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementAbsoluteMRaw(meter_t x, meter_t y, radian_t theta)
+    {
+        xTarget = x;
+        yTarget = y;
+        thetaTarget = theta;
+        movement = Movement::AbsoluteM;
+        updateIndicator();
+    }
 
-        private: physics::JointPtr leftJoint;
+    /**
+     * Movement for desired pose in world frame.
+     *
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementAbsoluteW(meter_t x, meter_t y, radian_t theta)
+    {
+        xTarget = x;
+        yTarget = y;
+        thetaTarget = theta;
+        movement = Movement::AbsoluteW;
+        updateIndicator();
+    }
 
-        // Pointer to the model
-        private: physics::ModelPtr model;
-
-        private: physics::JointPtr rightJoint;
-
-        // Pointer to the update event connection
-        private: event::ConnectionPtr updateConnection;
-
-        private: physics::WorldPtr world;
-
-        /**
-         * Movement for desired pose in mobile platform's frame.
-         *
-         * Translates the desired pose in the mobile platform's frame
-         * to the world's frame and moves according to the world's frame.
-         * Keep in mind that how the mobile platform reaches the target theta
-         * will affect the platform's position in it's own frame,
-         * and that position can't be predicted. Also remember
-         * that you can change the value of the platform's pose in either frame.
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementAbsoluteM(double x, double y, double theta) {
-            // distance to be traversed in the mobile platform's frame
-            xTarget = x - xm;
-            yTarget = y - ym;
-            // distance rotated to the direction
-            // to be traversed in the world's frame
-            x = (std::cos(theta) * xTarget) - (std::sin(theta) * yTarget);
-            y = (std::cos(theta) * yTarget) + (std::sin(theta) * xTarget);
-            // rotated distance added to current world's frame position
-            xTarget = xw + x;
-            yTarget = yw + y;
-            thetaTarget = theta;
-            movement = MOVEMENT_ABSOLUTE_W;
-            updateIndicator();
+    /**
+     * Incremental movement based on two Bézier curves
+     * relative to the platform's frame.
+     *
+     * The curve may be translated such that the first control point
+     * and angle coincides with the current platform's position and angle.
+     *
+     * The Bézier function's <code>t</code> variable, by default, iterates
+     * between 0 and 1 to generate the curve. <code>t</code>'s step value
+     * is defined by the user, and influences the time the platform
+     * will take to execute the movement, which is equal to the step value
+     * divided by the iteration time. If the movement time is too short
+     * (which depends on the movement length and complexity), the platform
+     * will make it's best effort to execute the movement. Therefore,
+     * the longer the movement time (the shorter the step value), the closer
+     * the platform will be to the desired movement.
+     *
+     * The platform's angle is also controlled by a Bézier curve. However,
+     * the algorithm has been modified to be one dimensional, which means
+     * its input are control values instead of control points.
+     * If a constant angle is desired, input a vector with a single value
+     * equal to the angle.
+     *
+     * @param step Bézier funcion's <code>t</code> variable's increment value.
+     * @param points control points for the translation movement
+     * @param angles control angles for the rotation movement
+     * @param offsetT whether to offset the control points to the starting platform's position
+     * @param offsetR whether to offset the control angles to the starting platform's angle
+     */
+    void fireMovementBezierM(std::vector<Point> *points,
+                             std::vector<radian_t> *angles,
+                             double step,
+                             bool offsetT,
+                             bool offsetR)
+    {
+        if (points->empty() || angles->empty())
+            return;
+        ::points.clear();
+        ::angles.clear();
+        Bezier_nT = points->size() - 1;
+        Bezier_nR = angles->size() - 1;
+        for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
+            ::points.push_back(Point(points->at(Bezier_i)));
+            ::points[Bezier_i].offset(-xw, -yw);
+            ::points[Bezier_i].rotate(theta);
+            ::points[Bezier_i].offset(xw, yw);
         }
-
-        /**
-         * Random movement for desired pose in mobile platform's frame
-         *
-         * At the end of the movement, the mobile platform's x, y and theta
-         * will be the same as the parameters. However, the position
-         * in the world frame will depend on how theta will vary
-         * from it's current value to the target value, and can't be predicted.
-         * It's preferred to use fireMovementPoseM(),
-         * unless you know what you're doing.
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementAbsoluteMRaw(double x, double y, double theta) {
-            xTarget = x;
-            yTarget = y;
-            thetaTarget = theta;
-            movement = MOVEMENT_ABSOLUTE_M;
-            updateIndicator();
+        if (offsetT) {
+            xOffset = xw - ::points[0].x;
+            yOffset = yw - ::points[0].y;
+        } else {
+            xOffset = 0_m;
+            yOffset = 0_m;
         }
-
-        /**
-         * Movement for desired pose in world frame.
-         *
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementAbsoluteW(double x, double y, double theta) {
-            xTarget = x;
-            yTarget = y;
-            thetaTarget = theta;
-            movement = MOVEMENT_ABSOLUTE_W;
-            updateIndicator();
+        for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
+            ::points[Bezier_i].offset(xOffset, yOffset);
         }
+        if (offsetR) {
+            thetaOffset = pirad - normaliseAngle360((*angles)[0] + pirad - theta);
+        } else {
+            thetaOffset = 0_rad;
+        }
+        for (Bezier_i = 0; Bezier_i <= Bezier_nR; Bezier_i++) {
+            ::angles.push_back(angles->at(Bezier_i) + thetaOffset);
+        }
+        Bezier_t = 0;
+        Bezier_step = step;
+        movement = Movement::BezierW;
+        updateIndicator();
+    }
 
-        /**
-         * Incremental movement based on two Bézier curves
-         * relative to the platform's frame.
-         *
-         * The curve may be translated such that the first control point
-         * and angle coincides with the current platform's position and angle.
-         *
-         * The Bézier function's <code>t</code> variable, by default, iterates
-         * between 0 and 1 to generate the curve. <code>t</code>'s step value
-         * is defined by the user, and influences the time the platform
-         * will take to execute the movement, which is equal to the step value
-         * divided by the iteration time. If the movement time is too short
-         * (which depends on the movement length and complexity), the platform
-         * will make it's best effort to execute the movement. Therefore,
-         * the longer the movement time (the shorter the step value), the closer
-         * the platform will be to the desired movement.
-         *
-         * The platform's angle is also controlled by a Bézier curve. However,
-         * the algorithm has been modified to be one dimensional, which means
-         * its input are control values instead of control points.
-         * If a constant angle is desired, input a vector with a single value
-         * equal to the angle.
-         *
-         * @param step Bézier funcion's <code>t</code> variable's increment value.
-         * @param points control points for the translation movement
-         * @param angles control angles for the rotation movement
-         * @param offsetT whether to offset the control points to the starting platform's position
-         * @param offsetR whether to offset the control angles to the starting platform's angle
-         */
-        public: void fireMovementBezierM(std::vector<Point> * points,
-                std::vector<double> * angles, double step,
-                bool offsetT, bool offsetR) {
-            if (points->empty() || angles->empty()) return;
-            ::points.clear();
-            ::angles.clear();
-            Bezier_nT = points->size() - 1;
-            Bezier_nR = angles->size() - 1;
-            for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
-                ::points.push_back(Point(points->at(Bezier_i)));
-                ::points[Bezier_i].offset(-xw, -yw);
-                ::points[Bezier_i].rotate(theta);
-                ::points[Bezier_i].offset(xw, yw);
+    /**
+     * Incremental movement based on two Bézier curves relative to the world's frame.
+     *
+     * The curve may be translated such that the first control point
+     * and angle coincides with the current platform's position and angle.
+     *
+     * The Bézier function's <code>t</code> variable, by default, iterates
+     * between 0 and 1 to generate the curve. <code>t</code>'s step value
+     * is defined by the user, and influences the time the platform
+     * will take to execute the movement, which is equal to the step value
+     * divided by the iteration time. If the movement time is too short
+     * (which depends on the movement length and complexity), the platform
+     * will make it's best effort to execute the movement. Therefore,
+     * the longer the movement time (the shorter the step value), the closer
+     * the platform will be to the desired movement.
+     *
+     * The platform's angle is also controlled by a Bézier curve. However,
+     * the algorithm has been modified to be one dimensional, which means
+     * its input are control values instead of control points.
+     * If a constant angle is desired, input a vector with a single value
+     * equal to the angle.
+     *
+     * @param step Bézier funcion's <code>t</code> variable's increment value.
+     * @param points control points for the translation movement
+     * @param angles control angles for the rotation movement
+     * @param offsetT whether to offset the control points to the starting platform's position
+     * @param offsetR whether to offset the control angles to the starting platform's angle
+     */
+    void fireMovementBezierW(std::vector<Point> *points,
+                             std::vector<radian_t> *angles,
+                             double step,
+                             bool offsetT,
+                             bool offsetR)
+    {
+        if (points->empty() || angles->empty())
+            return;
+        ::points.clear();
+        ::angles.clear();
+        Bezier_nT = points->size() - 1;
+        Bezier_nR = angles->size() - 1;
+        if (offsetT) {
+            xOffset = xw - (*points)[0].x;
+            yOffset = yw - (*points)[0].y;
+        } else {
+            xOffset = 0_m;
+            yOffset = 0_m;
+        }
+        if (offsetR) {
+            thetaOffset = pirad - normaliseAngle360((*angles)[0] + pirad - theta);
+        } else {
+            thetaOffset = 0_rad;
+        }
+        for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
+            ::points.push_back(Point(points->at(Bezier_i), xOffset, yOffset));
+        }
+        for (Bezier_i = 0; Bezier_i <= Bezier_nR; Bezier_i++) {
+            ::angles.push_back(angles->at(Bezier_i) + thetaOffset);
+        }
+        Bezier_t = 0;
+        Bezier_step = step;
+        movement = Movement::BezierW;
+        updateIndicator();
+    }
+
+    /**
+     * Moves the platform with fixed translation and rotation speeds
+     * relative to the mobile platform's frame but translated
+     * to the world's frame. This results in a world's frame movement
+     * rotated according to the initial angle between frames.
+     *
+     * To be executed by the communications module.
+     *
+     * @param Vleft
+     * @param Vback
+     * @param Vright
+     */
+    void fireMovementDirectHybrid(meters_per_second_t Vxm, meters_per_second_t Vym, radians_per_second_t omegap)
+    {
+        VxTarget = (cos(theta) * Vxm) - (sin(theta) * Vym);
+        VyTarget = (cos(theta) * Vym) + (sin(theta) * Vxm);
+        omegapTarget = omegap;
+        movement = Movement::DirectW;
+    }
+
+    /**
+     * Moves the platform with fixed translation and rotation speeds,
+     * relative to the mobile platform's frame. Does not transform
+     * the speeds from the mobile platform's frame to the world frame.
+     * This means that random changes in the platform's angle
+     * will not change it's movement, as the mobile platform's frame
+     * rotates with the platform.
+     *
+     * To be executed by the communications module.
+     *
+     * @param Vleft
+     * @param Vback
+     * @param Vright
+     */
+    void fireMovementDirectMobile(meters_per_second_t Vxm, meters_per_second_t Vym, radians_per_second_t omegap)
+    {
+        VxTarget = Vxm;
+        VyTarget = Vym;
+        omegapTarget = omegap;
+        movement = Movement::DirectM;
+    }
+
+    /**
+     * Sets the wheels' speeds, in m/s.
+     *
+     * To be executed by the communications module.
+     * @param Vleft
+     * @param Vback
+     * @param Vright
+     */
+    void fireMovementDirectWheel(meters_per_second_t Vleft, meters_per_second_t Vback, meters_per_second_t Vright)
+    {
+        VleftTarget = Vleft;
+        VbackTarget = Vback;
+        VrightTarget = Vright;
+        movement = Movement::Direct;
+    }
+
+    /**
+     * Moves the platform with fixed translation and rotation speeds,
+     * relative to the world's frame.
+     *
+     * To be executed by the communications module.
+     *
+     * @param Vleft
+     * @param Vback
+     * @param Vright
+     */
+    void fireMovementDirectWorld(meters_per_second_t Vxw, meters_per_second_t Vyw, radians_per_second_t omegap)
+    {
+        VxTarget = Vxw;
+        VyTarget = Vyw;
+        omegapTarget = omegap;
+        movement = Movement::DirectW;
+    }
+
+    /**
+     * Movement of a given distance and angle of rotation
+     * in the mobile platform's frame
+     *
+     * Translates the movement in the mobile platform's frame
+     * to the world's frame and moves according to the world's frame.
+     * Keep in mind that how the mobile platform reaches the target theta
+     * will affect the platform's position in it's own frame,
+     * and that position can't be predicted. Also remember
+     * that you can change the value of the platform's pose in either frame.
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementRelativeM(meter_t x, meter_t y, radian_t theta)
+    {
+        // distance to be traversed in the mobile platform's frame
+        xTarget = x;
+        yTarget = y;
+        // distance rotated to the direction
+        // to be traversed in the world's frame
+        x = (cos(theta) * xTarget) - (sin(theta) * yTarget);
+        y = (cos(theta) * yTarget) + (sin(theta) * xTarget);
+        // rotated distance added to current world's frame position
+        xTarget = xw + x;
+        yTarget = yw + y;
+        thetaTarget = normaliseAngle360(::theta + theta);
+        movement = Movement::AbsoluteW;
+        updateIndicator();
+    }
+
+    /**
+     * Random movement of a given distance and angle of rotation
+     * in the mobile platform's frame
+     *
+     * At the end of the movement, the mobile platform will have traversed
+     * in x and y and rotated by theta, relative to its frame.
+     * However, the position in the world frame will depend
+     * on how theta will vary from it's current value to the target value,
+     * and can't be predicted. It's preferred to use fireMovementPoseM(),
+     * unless you know what you're doing.
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementRelativeMRaw(meter_t x, meter_t y, radian_t theta)
+    {
+        xTarget = xm + x;
+        yTarget = ym + y;
+        thetaTarget = normaliseAngle360(::theta + theta);
+        movement = Movement::AbsoluteM;
+        updateIndicator();
+    }
+
+    /**
+     * Movement of a given distance and angle of rotation
+     * relative to the world frame.
+     *
+     * To be executed by the communications module.
+     *
+     * @param x
+     * @param y
+     * @param theta
+     */
+    void fireMovementRelativeW(meter_t x, meter_t y, radian_t theta)
+    {
+        xTarget = xw + x;
+        yTarget = yw + y;
+        thetaTarget = normaliseAngle360(::theta + theta);
+        movement = Movement::AbsoluteW;
+        updateIndicator();
+    }
+
+    void Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/)
+    {
+        // Store the pointer to the model
+        this->model = _parent;
+
+        this->leftJoint = model->GetJoint("left_joint");
+        this->backJoint = model->GetJoint("back_joint");
+        this->rightJoint = model->GetJoint("right_joint");
+
+        this->world = _parent->GetWorld();
+        //this->indicator = this->world->GetModel("wood_cube_2_5cm");
+        //this->indicatorPose.reset(new math::Pose());
+        //this->indicator->SetGravityMode(false);
+        //this->indicator->Fini();
+
+        std::srand(std::time(0));
+
+        // Listen to the update event. This event is broadcast every
+        // simulation iteration.
+        this->updateConnection = event::Events::ConnectWorldUpdateBegin(
+                boost::bind(&OmniPlatformPlugin::OnUpdate, this, _1));
+    }
+
+    // Called by the world update start event
+    void OnUpdate(const common::UpdateInfo & /*_info*/)
+    {
+        odometry();
+        switch (movement) {
+        case Movement::AbsoluteM:
+            xError = xTarget - xm;
+            yError = yTarget - ym;
+            // method parameter: theta plus shift to place thetaTarget at pi
+            thetaError = pirad - normaliseAngle360(theta + pirad - thetaTarget);
+            if (isStopPose()) {
+                movement = Movement::None;
+                break;
             }
-            if (offsetT) {
-                xOffset = xw - ::points[0].x;
-                yOffset = yw - ::points[0].y;
+            xErrorI += xError;
+            yErrorI += yError;
+            thetaErrorI += thetaError;
+            Vxm = (xError * P) + (xErrorI * I);
+            Vym = (yError * P) + (yErrorI * I);
+            VxAbs = abs(Vxm);
+            VyAbs = abs(Vym);
+            if ((VxAbs > Vmax) || (VyAbs > Vmax)) {
+                scale = Vmax / ((VxAbs > VyAbs) ? VxAbs : VyAbs);
+                Vxm *= scale;
+                Vym *= scale;
+            }
+            omegap = (thetaError * P) + (thetaErrorI * I);
+            if (omegap > omegamax) {
+                omegap = omegamax;
+            }
+            inverseKinematicsMobile();
+            break;
+        case Movement::BezierW:
+            if (Bezier_t <= 1) {
+                Bezier();
+                xTarget = Bezier_pX;
+                yTarget = Bezier_pY;
+                thetaTarget = normaliseAngle360(Bezier_pTheta);
+                Bezier_t += Bezier_step;
+                updateIndicator();
             } else {
-                xOffset = 0;
-                yOffset = 0;
+                movement = Movement::None;
             }
-            for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
-                ::points[Bezier_i].offset(xOffset, yOffset);
+            // falls through
+        case Movement::AbsoluteW:
+            xError = xTarget - xw;
+            yError = yTarget - yw;
+            // method parameter: theta plus shift to place thetaTarget at pi
+            thetaError = pirad - normaliseAngle360(theta + pirad - thetaTarget);
+            if (isStopPose() && (movement == Movement::AbsoluteW)) {
+                movement = Movement::None;
+                break;
             }
-            if (offsetR) {
-                thetaOffset = pi - normalizeRadian((*angles)[0] + pi - theta);
-            } else {
-                thetaOffset = 0;
+            xErrorI += xError;
+            yErrorI += yError;
+            thetaErrorI += thetaError;
+            Vxw = (xError * P) + (xErrorI * I);
+            Vyw = (yError * P) + (yErrorI * I);
+            VxAbs = abs(Vxw);
+            VyAbs = abs(Vyw);
+            if ((VxAbs > Vmax) || (VyAbs > Vmax)) {
+                scale = Vmax / ((VxAbs > VyAbs) ? VxAbs : VyAbs);
+                Vxw *= scale;
+                Vyw *= scale;
             }
-            for (Bezier_i = 0; Bezier_i <= Bezier_nR; Bezier_i++) {
-                ::angles.push_back(angles->at(Bezier_i) + thetaOffset);
+            omegap = (thetaError * P) + (thetaErrorI * I);
+            if (omegap > omegamax) {
+                omegap = omegamax;
             }
-            Bezier_t = 0;
-            Bezier_step = step;
-            movement = MOVEMENT_BEZIER_W;
-            updateIndicator();
+            inverseKinematicsWorld();
+            break;
+        case Movement::Direct:
+            Vleft = VleftTarget;
+            Vback = VbackTarget;
+            Vright = VrightTarget;
+            break;
+        case Movement::DirectM:
+            Vxm = VxTarget;
+            Vym = VyTarget;
+            omegap = omegapTarget;
+            inverseKinematicsMobile();
+            break;
+        case Movement::DirectW:
+            Vxw = VxTarget;
+            Vyw = VyTarget;
+            omegap = omegapTarget;
+            inverseKinematicsWorld();
+            break;
+        default:
+            xErrorI = 0_m;
+            yErrorI = 0_m;
+            thetaErrorI = 0_rad;
+            Vleft = 0_mps;
+            Vback = 0_mps;
+            Vright = 0_mps;
+            //*
+            fireMovementAbsoluteW(meter_t{ getRandom(1) - 0.5 },
+                                  meter_t{ getRandom(1) - 0.5 },
+                                  radian_t{ getRandom(2 * pi()) });
+            /**/
         }
 
-        /**
-         * Incremental movement based on two Bézier curves relative to the world's frame.
-         *
-         * The curve may be translated such that the first control point
-         * and angle coincides with the current platform's position and angle.
-         *
-         * The Bézier function's <code>t</code> variable, by default, iterates
-         * between 0 and 1 to generate the curve. <code>t</code>'s step value
-         * is defined by the user, and influences the time the platform
-         * will take to execute the movement, which is equal to the step value
-         * divided by the iteration time. If the movement time is too short
-         * (which depends on the movement length and complexity), the platform
-         * will make it's best effort to execute the movement. Therefore,
-         * the longer the movement time (the shorter the step value), the closer
-         * the platform will be to the desired movement.
-         *
-         * The platform's angle is also controlled by a Bézier curve. However,
-         * the algorithm has been modified to be one dimensional, which means
-         * its input are control values instead of control points.
-         * If a constant angle is desired, input a vector with a single value
-         * equal to the angle.
-         *
-         * @param step Bézier funcion's <code>t</code> variable's increment value.
-         * @param points control points for the translation movement
-         * @param angles control angles for the rotation movement
-         * @param offsetT whether to offset the control points to the starting platform's position
-         * @param offsetR whether to offset the control angles to the starting platform's angle
-         */
-        public: void fireMovementBezierW(std::vector<Point> * points,
-                std::vector<double> * angles, double step,
-                bool offsetT, bool offsetR) {
-            if (points->empty() || angles->empty()) return;
-            ::points.clear();
-            ::angles.clear();
-            Bezier_nT = points->size() - 1;
-            Bezier_nR = angles->size() - 1;
-            if (offsetT) {
-                xOffset = xw - (*points)[0].x;
-                yOffset = yw - (*points)[0].y;
-            } else {
-                xOffset = 0;
-                yOffset = 0;
-            }
-            if (offsetR) {
-                thetaOffset = pi - normalizeRadian((*angles)[0] + pi - theta);
-            } else {
-                thetaOffset = 0;
-            }
-            for (Bezier_i = 0; Bezier_i <= Bezier_nT; Bezier_i++) {
-                ::points.push_back(Point(points->at(Bezier_i), xOffset, yOffset));
-            }
-            for (Bezier_i = 0; Bezier_i <= Bezier_nR; Bezier_i++) {
-                ::angles.push_back(angles->at(Bezier_i) + thetaOffset);
-            }
-            Bezier_t = 0;
-            Bezier_step = step;
-            movement = MOVEMENT_BEZIER_W;
-            updateIndicator();
-        }
+        leftJoint->SetVelocity(0, getAngularVelocity(Vleft, wheelRadius).value());
+        backJoint->SetVelocity(0, getAngularVelocity(Vback, wheelRadius).value());
+        rightJoint->SetVelocity(0, getAngularVelocity(Vright, wheelRadius).value());
+    }
 
-        /**
-         * Moves the platform with fixed translation and rotation speeds
-         * relative to the mobile platform's frame but translated
-         * to the world's frame. This results in a world's frame movement
-         * rotated according to the initial angle between frames.
-         *
-         * To be executed by the communications module.
-         *
-         * @param Vleft
-         * @param Vback
-         * @param Vright
-         */
-        public: void fireMovementDirectHybrid(double Vxm, double Vym, double omegap) {
-            VxTarget = (std::cos(theta) * Vxm) - (std::sin(theta) * Vym);
-            VyTarget = (std::cos(theta) * Vym) + (std::sin(theta) * Vxm);
-            omegapTarget = omegap;
-            movement = MOVEMENT_DIRECT_W;
-        }
+private:
+    physics::JointPtr backJoint;
+    physics::JointPtr leftJoint;
+    physics::JointPtr rightJoint;
 
-        /**
-         * Moves the platform with fixed translation and rotation speeds,
-         * relative to the mobile platform's frame. Does not transform
-         * the speeds from the mobile platform's frame to the world frame.
-         * This means that random changes in the platform's angle
-         * will not change it's movement, as the mobile platform's frame
-         * rotates with the platform.
-         *
-         * To be executed by the communications module.
-         *
-         * @param Vleft
-         * @param Vback
-         * @param Vright
-         */
-        public: void fireMovementDirectMobile(double Vxm, double Vym, double omegap) {
-            VxTarget = Vxm;
-            VyTarget = Vym;
-            omegapTarget = omegap;
-            movement = MOVEMENT_DIRECT_M;
-        }
+    // Pointer to the model
+    physics::ModelPtr model;
 
-        /**
-         * Sets the wheels' speeds, in m/s.
-         *
-         * To be executed by the communications module.
-         * @param Vleft
-         * @param Vback
-         * @param Vright
-         */
-        public: void fireMovementDirectWheel(double Vleft, double Vback, double Vright) {
-            VleftTarget  = Vleft ;
-            VbackTarget  = Vback ;
-            VrightTarget = Vright;
-            movement = MOVEMENT_DIRECT;
-        }
+    // Pointer to the update event connection
+    event::ConnectionPtr updateConnection;
 
-        /**
-         * Moves the platform with fixed translation and rotation speeds,
-         * relative to the world's frame.
-         *
-         * To be executed by the communications module.
-         *
-         * @param Vleft
-         * @param Vback
-         * @param Vright
-         */
-        public: void fireMovementDirectWorld(double Vxw, double Vyw, double omegap) {
-            VxTarget     = Vxw   ;
-            VyTarget     = Vyw   ;
-            omegapTarget = omegap;
-            movement = MOVEMENT_DIRECT_W;
-        }
+    physics::WorldPtr world;
 
-        /**
-         * Movement of a given distance and angle of rotation
-         * in the mobile platform's frame
-         *
-         * Translates the movement in the mobile platform's frame
-         * to the world's frame and moves according to the world's frame.
-         * Keep in mind that how the mobile platform reaches the target theta
-         * will affect the platform's position in it's own frame,
-         * and that position can't be predicted. Also remember
-         * that you can change the value of the platform's pose in either frame.
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementRelativeM(double x, double y, double theta) {
-            // distance to be traversed in the mobile platform's frame
-            xTarget = x;
-            yTarget = y;
-            // distance rotated to the direction
-            // to be traversed in the world's frame
-            x = (std::cos(theta) * xTarget) - (std::sin(theta) * yTarget);
-            y = (std::cos(theta) * yTarget) + (std::sin(theta) * xTarget);
-            // rotated distance added to current world's frame position
-            xTarget = xw + x;
-            yTarget = yw + y;
-            thetaTarget = normalizeRadian(::theta + theta);
-            movement = MOVEMENT_ABSOLUTE_W;
-            updateIndicator();
-        }
+    void odometry()
+    {
+        timeLast = timeNow;
+        timeNow = second_t{ this->world->SimTime().Double() };
+        timeElapsed = timeNow - timeLast;
+        Vleft = meters_per_second_t{ this->leftJoint->GetVelocity(0) * wheelRadius.value() };
+        Vback = meters_per_second_t{ this->backJoint->GetVelocity(0) * wheelRadius.value() };
+        Vright = meters_per_second_t{ this->rightJoint->GetVelocity(0) * wheelRadius.value() };
+        theta = normaliseAngle360(radian_t{ model->RelativePose().Rot().Yaw() }); // simulation theta
+        forwardKinematicsWorld();
+        xm += Vxm * timeElapsed;
+        ym += Vym * timeElapsed;
+        xw += Vxw * timeElapsed;
+        //xw = model->GetRelativePose().pos.x; // simulation x
+        yw += Vyw * timeElapsed;
+        //yw = model->GetRelativePose().pos.y; // simulation y
+    }
 
-        /**
-         * Random movement of a given distance and angle of rotation
-         * in the mobile platform's frame
-         *
-         * At the end of the movement, the mobile platform will have traversed
-         * in x and y and rotated by theta, relative to its frame.
-         * However, the position in the world frame will depend
-         * on how theta will vary from it's current value to the target value,
-         * and can't be predicted. It's preferred to use fireMovementPoseM(),
-         * unless you know what you're doing.
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementRelativeMRaw(double x, double y, double theta) {
-            xTarget = xm + x;
-            yTarget = ym + y;
-            thetaTarget = normalizeRadian(::theta + theta);
-            movement = MOVEMENT_ABSOLUTE_M;
-            updateIndicator();
-        }
+    /**
+     * Simulation purposes only.
+     */
+    void updateIndicator()
+    {
+        //            indicatorPose->Set(xTarget, yTarget, 0.05, 0, 0, thetaTarget);
+        //            indicator->SetRelativePose(*indicatorPose);
+    }
+};
 
-        /**
-         * Movement of a given distance and angle of rotation
-         * relative to the world frame.
-         *
-         * To be executed by the communications module.
-         *
-         * @param x
-         * @param y
-         * @param theta
-         */
-        public: void fireMovementRelativeW(double x, double y, double theta) {
-            xTarget = xw + x;
-            yTarget = yw + y;
-            thetaTarget = normalizeRadian(::theta + theta);
-            movement = MOVEMENT_ABSOLUTE_W;
-            updateIndicator();
-        }
-
-        public: void Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/) {
-            // Store the pointer to the model
-            this->model = _parent;
-
-            this-> leftJoint = model->GetJoint("left_joint");
-            this-> backJoint = model->GetJoint("back_joint");
-            this->rightJoint = model->GetJoint("right_joint");
-
-            this->world = _parent->GetWorld();
-            //this->indicator = this->world->GetModel("wood_cube_2_5cm");
-            //this->indicatorPose.reset(new math::Pose());
-            //this->indicator->SetGravityMode(false);
-            //this->indicator->Fini();
-
-            std::srand(std::time(0));
-
-
-
-            // Listen to the update event. This event is broadcast every
-            // simulation iteration.
-            this->updateConnection = event::Events::ConnectWorldUpdateBegin(
-                    boost::bind(&OmniPlatformPlugin::OnUpdate, this, _1));
-        }
-
-        private: void odometry() {
-            timeLast = timeNow;
-            timeNow = this->world->SimTime().Double();
-            timeElapsed = timeNow - timeLast;
-            Vleft  = this-> leftJoint->GetVelocity(0) * r;
-            Vback  = this-> backJoint->GetVelocity(0) * r;
-            Vright = this->rightJoint->GetVelocity(0) * r;
-            theta = normalizeRadian(model->RelativePose().Rot().Yaw()); // simulation theta
-            forwardKinematicsWorld();
-            xm += Vxm * timeElapsed;
-            ym += Vym * timeElapsed;
-            xw += Vxw * timeElapsed;
-            //xw = model->GetRelativePose().pos.x; // simulation x
-            yw += Vyw * timeElapsed;
-            //yw = model->GetRelativePose().pos.y; // simulation y
-        }
-
-        // Called by the world update start event
-        public: void OnUpdate(const common::UpdateInfo & /*_info*/) {
-            odometry();
-            switch (movement) {
-                case MOVEMENT_ABSOLUTE_M:
-                    xError = xTarget - xm;
-                    yError = yTarget - ym;
-                    // method parameter: theta plus shift to place thetaTarget at pi
-                    thetaError = pi - normalizeRadian(theta + pi - thetaTarget);
-                    if (isStopPose()) {
-                        movement = MOVEMENT_NONE;
-                        break;
-                    }
-                    xErrorI += xError;
-                    yErrorI += yError;
-                    thetaErrorI += thetaError;
-                    Vxm = (xError * P) + (xErrorI * I);
-                    Vym = (yError * P) + (yErrorI * I);
-                    VxAbs = std::abs(Vxm);
-                    VyAbs = std::abs(Vym);
-                    if ((VxAbs > Vmax) || (VyAbs > Vmax)) {
-                        scale = Vmax / ((VxAbs > VyAbs) ? VxAbs : VyAbs);
-                        Vxm *= scale;
-                        Vym *= scale;
-                    }
-                    omegap = (thetaError * P) + (thetaErrorI * I);
-                    if (omegap > omegamax) {
-                        omegap = omegamax;
-                    }
-                    inverseKinematicsMobile();
-                    break;
-                case MOVEMENT_BEZIER_W:
-                    if (Bezier_t <= 1) {
-                        Bezier();
-                        xTarget = Bezier_pX;
-                        yTarget = Bezier_pY;
-                        thetaTarget = normalizeRadian(Bezier_pTheta);
-                        Bezier_t += Bezier_step;
-                        updateIndicator();
-                    } else {
-                        movement = MOVEMENT_NONE;
-                    }
-                    // break; // fall through intended
-                case MOVEMENT_ABSOLUTE_W:
-                    xError = xTarget - xw;
-                    yError = yTarget - yw;
-                    // method parameter: theta plus shift to place thetaTarget at pi
-                    thetaError = pi - normalizeRadian(theta + pi - thetaTarget);
-                    if (isStopPose() && (movement == MOVEMENT_ABSOLUTE_W)) {
-                        movement = MOVEMENT_NONE;
-                        break;
-                    }
-                    xErrorI += xError;
-                    yErrorI += yError;
-                    thetaErrorI += thetaError;
-                    Vxw = (xError * P) + (xErrorI * I);
-                    Vyw = (yError * P) + (yErrorI * I);
-                    VxAbs = std::abs(Vxw);
-                    VyAbs = std::abs(Vyw);
-                    if ((VxAbs > Vmax) || (VyAbs > Vmax)) {
-                        scale = Vmax / ((VxAbs > VyAbs) ? VxAbs : VyAbs);
-                        Vxw *= scale;
-                        Vyw *= scale;
-                    }
-                    omegap = (thetaError * P) + (thetaErrorI * I);
-                    if (omegap > omegamax) {
-                        omegap = omegamax;
-                    }
-                    inverseKinematicsWorld();
-                    break;
-                case MOVEMENT_DIRECT:
-                    Vleft  = VleftTarget ;
-                    Vback  = VbackTarget ;
-                    Vright = VrightTarget;
-                    break;
-                case MOVEMENT_DIRECT_M:
-                    Vxm    = VxTarget    ;
-                    Vym    = VyTarget    ;
-                    omegap = omegapTarget;
-                    inverseKinematicsMobile();
-                    break;
-                case MOVEMENT_DIRECT_W:
-                    Vxw    = VxTarget    ;
-                    Vyw    = VyTarget    ;
-                    omegap = omegapTarget;
-                    inverseKinematicsWorld();
-                    break;
-                default:
-                    xErrorI = 0;
-                    yErrorI = 0;
-                    thetaErrorI = 0;
-                    Vleft = 0;
-                    Vback = 0;
-                    Vright = 0;
-                    //*
-                    fireMovementAbsoluteW(getRandom(1) - 0.5, getRandom(1) - 0.5, getRandom(pi2));
-                    /**/
-            }
-             leftJoint->SetVelocity(0, Vleft / r);
-             backJoint->SetVelocity(0, Vback / r);
-            rightJoint->SetVelocity(0, Vright / r);
-        }
-
-        /**
-         * Simulation purposes only.
-         */
-        private: void updateIndicator() {
-//            indicatorPose->Set(xTarget, yTarget, 0.05, 0, 0, thetaTarget);
-//            indicator->SetRelativePose(*indicatorPose);
-        }
-    };
-
-    // Register this plugin with the simulator
-    GZ_REGISTER_MODEL_PLUGIN(OmniPlatformPlugin)
+// Register this plugin with the simulator
+GZ_REGISTER_MODEL_PLUGIN(OmniPlatformPlugin)
 }
 
 // C++ bug: when things are declared as 'static' or 'const',
 // they lose their references, and it's only possible to read from them
 // to restore their references, they must be decladed again like this:
-double Point::w;
+meter_t Point::w;
