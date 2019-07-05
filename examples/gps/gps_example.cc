@@ -22,7 +22,7 @@ int main()
     int numTrials = 20;
 
     
-    while {
+    while(numTrials >= 0) {
         try {
             if (gps.getGPSData().gpsQuality != BoBRobotics::GPS::GPSQuality::INVALID) {
                 std::cout << " we have a valid measurement" << std::endl;
@@ -32,8 +32,11 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             numTrials--;
         }    
+    } 
+    if (numTrials == 0) {
+        std::cout << " We have no valid gps measurement, try waiting for survey in and restart " << std::endl;
     }
-
+    
     
     
 
