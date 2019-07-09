@@ -543,6 +543,13 @@ function(BoB_external_libraries)
                 link_directories(${GAZEBO_LIBRARY_DIRS})
                 add_compile_flags(${GAZEBO_CXX_FLAGS})
             endif()
+        elseif(${lib} STREQUAL spineml_simulation)
+            # Find where user has installed GeNN
+            exec_or_fail("${BOB_ROBOTICS_PATH}/cmake/find_genn.sh")
+
+            BoB_add_include_directories("${GENN_PATH}/include/spineml/simulator")
+            link_directories("${GENN_PATH}/lib")
+            BoB_add_link_libraries(spineml_simulator spineml_common dl)
         else()
             message(FATAL_ERROR "${lib} is not a recognised library name")
         endif()
