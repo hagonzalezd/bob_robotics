@@ -1,11 +1,11 @@
 // BoB robotics includes
 #include "common/circstat.h"
-#include "common/collision.h"
 #include "common/main.h"
-#include "common/read_objects.h"
-#include "common/sfml_world.h"
 #include "hid/joystick.h"
+#include "navigation/read_objects.h"
+#include "robots/control/collision_detector.h"
 #include "robots/simulated_tank.h"
+#include "viz/sfml_world/sfml_world.h"
 
 // SpineML simulator includes
 #include "simulator.h"
