@@ -248,8 +248,8 @@ macro(always_included_packages)
     # packages may not be present
     if(NOT UNIX)
         if(NOT TARGET SDL2::SDL2)
-        find_package(SDL2)
-    endif()
+            find_package(SDL2)
+        endif()
         if(NOT TARGET Eigen3::Eigen)
             find_package(Eigen3 QUIET)
         endif()
@@ -272,14 +272,14 @@ macro(BoB_build)
     message("Build type: ${CMAKE_BUILD_TYPE}")
 
     if(NOT WIN32)
-    # Use ccache if present to speed up repeat builds
-    find_program(CCACHE_FOUND ccache)
-    if(CCACHE_FOUND)
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-    else()
-        message(WARNING "ccache not found. Install for faster repeat builds.")
-    endif()
+        # Use ccache if present to speed up repeat builds
+        find_program(CCACHE_FOUND ccache)
+        if(CCACHE_FOUND)
+            set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+            set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+        else()
+            message(WARNING "ccache not found. Install for faster repeat builds.")
+        endif()
     endif()
 
     # Set DEBUG macro when compiling in debug mode
@@ -471,10 +471,10 @@ function(BoB_external_libraries)
             if(UNIX)
                 BoB_add_pkg_config_libraries(eigen3)
             else()
-            if(NOT TARGET Eigen3::Eigen)
-                message(FATAL_ERROR "Eigen 3 not found")
-            endif()
-            BoB_add_link_libraries(Eigen3::Eigen)
+                if(NOT TARGET Eigen3::Eigen)
+                    message(FATAL_ERROR "Eigen 3 not found")
+                endif()
+                BoB_add_link_libraries(Eigen3::Eigen)
             endif()
 
             # For CMake < 3.9, we need to make the target ourselves
@@ -483,21 +483,15 @@ function(BoB_external_libraries)
             elseif(NOT OpenMP_CXX_FOUND)
                 find_package(Threads REQUIRED)
                 add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
-
-                # Some compilers (e.g. clang) might not have support for OpenMP
-                if(NOT OpenMP_CXX_FLAGS)
-                    return()
-                endif()
-
                 set_property(TARGET OpenMP::OpenMP_CXX
                              PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
 
                 # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
                 set_property(TARGET OpenMP::OpenMP_CXX
                              PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
-            endif()
 
-            BoB_add_link_libraries(OpenMP::OpenMP_CXX)
+                BoB_add_link_libraries(OpenMP::OpenMP_CXX)
+            endif()
         elseif(${lib} STREQUAL sfml-graphics)
             # It seems like only newer versions of SFML include a CMake package,
             # so use pkg-config on Unix instead, in case we don't have it
