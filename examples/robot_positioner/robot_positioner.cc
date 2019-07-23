@@ -148,7 +148,7 @@ public:
                         LOGI << "Final position: " << finalPose.x() << ", " << finalPose.y();
                         LOGI << "Goal: " << Goal;
                         LOGI << "Distance to goal: "
-                                  << Goal.distance2D(finalPose)
+                             << Goal.distance2D(finalPose)
                              << " (" << circularDistance(Goal.yaw(), finalPose.yaw()) << ")";
 
                         m_StateMachine.transition(ControlWithJoystick);
@@ -168,7 +168,7 @@ public:
 
                     const auto &pose = m_Positioner.getPose();
                     LOGI << "Distance to goal: "
-                              << Goal.distance2D(pose)
+                         << Goal.distance2D(pose)
                          << " (" << circularDistance(Goal.yaw(), pose.yaw()) << ")";
                 }
             }

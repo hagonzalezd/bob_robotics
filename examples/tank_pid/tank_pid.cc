@@ -211,7 +211,7 @@ bob_main(int argc, char **argv)
                 goalsIter++;
 
                 LOGI << "Reached goal "
-                          << std::distance(goals.begin(), goalsIter)
+                     << std::distance(goals.begin(), goalsIter)
                      << "/" << goals.size();
                 LOGI << "Final position: " << pose;
 
