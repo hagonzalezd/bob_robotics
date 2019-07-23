@@ -1,7 +1,6 @@
 #pragma once
 
 // Standard C++ includes
-#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -14,14 +13,15 @@ class AssertionFailedException
   : public std::runtime_error
 {
 public:
-    AssertionFailedException(const std::string &test, const std::string &file, int line)
-      : std::runtime_error("Assertion failed: " + test + " (in " + file + " at line " + std::to_string(line) + ")")
-    {
-#ifdef _WIN32
-        std::cout << what();
-#endif
-    }
+    AssertionFailedException(const std::string &test, const std::string &file, int line);
 }; // AssertionFailedException
+
+class NotImplementedException
+  : public std::runtime_error
+{
+public:
+    NotImplementedException(const std::string &functionName);
+}; // NotImplementedException
 } // BoBRobotics
 
 /**!
@@ -48,3 +48,9 @@ public:
 #else
 #define BOB_PACKED(class_to_pack) __pragma(pack(push, 1)) class_to_pack __pragma(pack(pop))
 #endif
+
+#define BOB_NOT_IMPLEMENTED(funcdef)                          \
+    funcdef                                                   \
+    {                                                         \
+        throw BoBRobotics::NotImplementedException(__func__); \
+    }

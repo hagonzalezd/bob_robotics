@@ -1,6 +1,7 @@
 #pragma once
 
 // BoB robotics includes
+#include "common/circstat.h"
 #include "common/macros.h"
 #include "common/pose.h"
 #include "common/stopwatch.h"
@@ -63,13 +64,7 @@ public:
         m_Pose = pose;
     }
 
-    void moveTo(const Pose2<LengthUnit, AngleUnit> &pose)
-    {
-        setPose(pose);
-    }
-
-    template<class Func>
-    bool moveToSync(const Pose2<LengthUnit, AngleUnit> &pose, Func)
+    bool moveTo(const Pose2<LengthUnit, AngleUnit> &pose)
     {
         setPose(pose);
         return true;
@@ -108,7 +103,7 @@ private:
             const meter_t turnRadius = (width * (m_Left + m_Right)) /
                                        (2 * (m_Left - m_Right));
             const double deltaAngle = (m_Right - m_Left) * elapsed / width;
-            const radian_t newAngle = m_Pose.yaw() + radian_t{ deltaAngle };
+            const radian_t newAngle = normaliseAngle180(m_Pose.yaw() + radian_t{ deltaAngle });
             m_Pose.x() -= turnRadius * (sin(newAngle) - sin(m_Pose.yaw()));
             m_Pose.y() += turnRadius * (cos(newAngle) - cos(m_Pose.yaw()));
             m_Pose.yaw() = newAngle;

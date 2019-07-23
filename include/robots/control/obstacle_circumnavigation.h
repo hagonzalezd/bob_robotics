@@ -2,10 +2,11 @@
 
 // BoB robotics includes
 #include "common/geometry.h"
+#include "common/logging.h"
+#include "common/macros.h"
 #include "common/pose.h"
 #include "robots/control/collision_detector.h"
 #include "robots/control/tank_pid.h"
-#include "robots/control/positioner.h"
 #include "robots/tank.h"
 
 // Third-party includes
@@ -13,10 +14,13 @@
 
 // Eigen
 #include <Eigen/Core>
+#include <Eigen/Geometry>
+
+// Standard C includes
+#include <cmath>
 
 // Standard C++ includes
 #include <algorithm>
-#include <iostream>
 #include <list>
 #include <vector>
 
@@ -53,7 +57,6 @@ enum class ObstacleCircumnavigatorState {
 
 template<class PositionerType, class PoseGetterType>
 class ObstacleAvoidingPositioner
-  : public Robots::PositionerBase<ObstacleAvoidingPositioner<PositionerType, PoseGetterType>>
 {
 public:
     ObstacleAvoidingPositioner(PositionerType &positioner,
@@ -169,7 +172,17 @@ private:
         // Find which side of the object intersects the line from robot to object
         Eigen::Matrix2d robotToObject;
         robotToObject << robotPose.x().value(), robotPose.y().value(),
-                objectCentre.x(), objectCentre.y();
+                         objectCentre.x(), objectCentre.y();
+
+        /*
+         * Arbitrarily take robot's position as 10cm backwards from where it is
+         * so that it definitely intersects with a line.
+         */
+        const double angle = atan2(robotToObject(0, 1) - robotToObject(1, 1),
+                                   robotToObject(0, 0) - robotToObject(1, 0));
+        robotToObject(0, 0) += 0.1 * cos(angle);
+        robotToObject(0, 1) += 0.1 * sin(angle);
+
         const auto pos = std::find_if(m_ObjectLines.cbegin(), m_ObjectLines.cend(),
             [&robotToObject](const auto &line)
             {
@@ -187,16 +200,19 @@ private:
         int whichLeaveLine = -1;
 
         const Eigen::Vector2d robotPosition = { robotPose.x().value(), robotPose.y().value() };
-        StraightLine robotLine;
-        if (std::isnan(robotGoal.x().value())) {
-            // No goal specified: assume robot wants to go in a straight line
-            robotLine.m = tan(robotPose.yaw()).value();
-            robotLine.c = robotPose.y().value() - robotLine.m * robotPose.x().value();
-        } else {
-            // Aim for robot's actual goal
-            const Eigen::Vector2d goal = { robotGoal.x().value(), robotGoal.y().value() };
-            robotLine = StraightLine::fromPoints(robotPosition, goal);
-        }
+        const Line2 robotLine = [&]() {
+            if (std::isnan(robotGoal.x().value())) {
+                // No goal specified: assume robot wants to go in a straight line
+                const Eigen::Vector2d origin{ robotPose.x().value(), robotPose.y().value() };
+                const Eigen::Vector2d direction{ 1.0, tan(robotPose.yaw()).value() };
+                Eigen::ParametrizedLine<double, 2> line{ origin, direction };
+                return Line2{ line };
+            } else {
+                // Aim for robot's actual goal
+                const Eigen::Vector2d goal{ robotGoal.x().value(), robotGoal.y().value() };
+                return Line2::Through(robotPosition, goal);
+            }
+        }();
 
         // Get perimeter around object, resize it for calculating route
         m_ObjectPerimeter = objectVerts;
@@ -222,9 +238,9 @@ private:
         }
 
         if (whichLeaveLine == -1 || whichLeaveLine == whichLine) {
-            std::cerr << "Bad line number: " << whichLeaveLine << std::endl
-                      << "(This is normal e.g. if moving backwards)" << std::endl
-                      << "Aborting" << std::endl;
+            LOGW << "Bad line number: " << whichLeaveLine << std::endl
+                 << "(This is normal e.g. if moving backwards)" << std::endl
+                 << "Aborting";
             m_State = State::DoingNothing;
         } else {
             // Append the waypoints to avoidLine (for display) and goals (for homing)
@@ -270,7 +286,7 @@ private:
             m_PIDWaypoints.emplace_back(meter_t{ leavePoint.x() }, meter_t{ leavePoint.y() });
 
             // Start PID control of robot
-            std::cout << "Driving to " << m_PIDWaypoints.front() << std::endl;
+            LOGI << "Driving to " << m_PIDWaypoints.front();
             m_TankPID.moveTo(m_PIDWaypoints.front());
             m_State = State::StartingCircumnavigation;
         }
@@ -288,7 +304,7 @@ private:
             if (m_PIDWaypoints.empty()) {
                 m_State = State::DoingNothing;
             } else {
-                std::cout << "Driving to " << m_PIDWaypoints.front() << std::endl;
+                LOGI << "Driving to " << m_PIDWaypoints.front();
                 m_TankPID.moveTo(m_PIDWaypoints.front());
             }
         }

@@ -2,7 +2,7 @@
 #include "common/logging.h"
 #include "hid/joystick.h"
 #include "imgproc/opencv_unwrap_360.h"
-#include "robots/norbot.h"
+#include "robots/tank.h"
 #include "vicon/capture_control.h"
 #include "vicon/udp.h"
 #include "video/see3cam_cu40.h"
@@ -42,7 +42,7 @@ int main()
     auto unwrapper = cam.createUnwrapper(unwrapSize);
 
     // Create motor interface
-    Norbot motor;
+    TANK_TYPE motor;
 
     cv::Mat output;
     cv::Mat unwrapped(unwrapSize, CV_8UC1);
@@ -56,9 +56,7 @@ int main()
                                               "c:\\users\\ad374\\Desktop");
 
     // Start capture
-    if(!viconCaptureControl.startRecording("camera_recorder")) {
-        return EXIT_FAILURE;
-    }
+    viconCaptureControl.startRecording("camera_recorder");
 
     // Open file to log capture data and write header
     std::ofstream data("vicon.csv");
@@ -101,9 +99,7 @@ int main()
 
 #ifdef VICON_CAPTURE
     // Stop capture
-    if(!viconCaptureControl.stopRecording("camera_recorder")) {
-        return EXIT_FAILURE;
-    }
+    viconCaptureControl.stopRecording("camera_recorder");
 #endif  // VICON_CAPTURE
 
     return EXIT_SUCCESS;

@@ -1,4 +1,5 @@
 // BoB robotics includes
+#include "common/logging.h"
 #include "viz/plot_agent.h"
 #include "vicon/capture_control.h"
 #include "vicon/udp.h"
@@ -8,7 +9,6 @@
 
 // Standard C++ includes
 #include <chrono>
-#include <iostream>
 #include <thread>
 
 using namespace BoBRobotics;
@@ -28,9 +28,7 @@ main()
     Vicon::UDPClient<> vicon(51001);
     Vicon::CaptureControl viconCaptureControl("192.168.1.100", 3003, "c:\\users\\ad374\\Desktop");
 
-    if (!viconCaptureControl.startRecording("test1")) {
-        return EXIT_FAILURE;
-    }
+    viconCaptureControl.startRecording("test1");
 
     bool warningGiven = false;
     do {
@@ -39,7 +37,7 @@ main()
         Viz::plotAgent(data.getPose<>(), -2500_mm, 2500_mm, -2500_mm, 2500_mm);
         if (data.timeSinceReceived() > 500ms) {
             if (!warningGiven) {
-                std::cerr << "Warning: Object is out of range" << std::endl;
+                LOGW << "Object is out of range";
                 warningGiven = true;
             }
         } else {
@@ -48,9 +46,7 @@ main()
         plt::pause(0.025);
     } while (plt::fignum_exists(1));
 
-    if (!viconCaptureControl.stopRecording("test1")) {
-        return EXIT_FAILURE;
-    }
+    viconCaptureControl.stopRecording("test1");
 
     return EXIT_SUCCESS;
 }

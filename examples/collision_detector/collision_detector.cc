@@ -1,5 +1,6 @@
 // BoB robotics includes
 #include "common/background_exception_catcher.h"
+#include "common/logging.h"
 #include "common/pose.h"
 #include "hid/joystick.h"
 #include "navigation/read_objects.h"
@@ -16,7 +17,6 @@
 // Standard C++ includes
 #include <array>
 #include <chrono>
-#include <iostream>
 #include <thread>
 
 using namespace BoBRobotics;
@@ -28,8 +28,8 @@ class Agent
   : public sf::Drawable
 {
 public:
-    Agent(const Viz::SFMLWorld &renderer, size_t numVertices)
-      : m_Renderer(renderer)
+    Agent(const Viz::SFMLWorld &display, size_t numVertices)
+      : m_Display(display)
       , m_Shape(numVertices)
     {
         m_Shape.setFillColor(sf::Color::Blue);
@@ -38,7 +38,7 @@ public:
     void setVertices(const Eigen::MatrixX2d &vertices)
     {
         for (int i = 0; i < vertices.rows(); i++) {
-            m_Shape.setPoint(i, m_Renderer.vectorToPixel(vertices(i, 0), vertices(i, 1)));
+            m_Shape.setPoint(i, m_Display.vectorToPixel(vertices(i, 0), vertices(i, 1)));
         }
     }
 
@@ -48,7 +48,7 @@ public:
     }
 
 private:
-    const Viz::SFMLWorld &m_Renderer;
+    const Viz::SFMLWorld &m_Display;
     sf::ConvexShape m_Shape;
 };
 
@@ -74,7 +74,7 @@ main()
     tank.addJoystick(joystick);
 
     // Display for robot + objects
-    Viz::SFMLWorld renderer{ V{ 5_m, 5_m } };
+    Viz::SFMLWorld display{ V{ 5_m, 5_m } };
 
     // Read objects from file
     const auto objects = Navigation::readObjects("objects.yaml");
@@ -87,7 +87,7 @@ main()
     std::vector<Viz::ArenaObject> objectShapes;
     objectShapes.reserve(objects.size());
     for (size_t i = 0; i < objects.size(); i++) {
-        objectShapes.emplace_back(renderer, objects[i], resizedObjects[i]);
+        objectShapes.emplace_back(display, objects[i], resizedObjects[i]);
     }
 
     BackgroundExceptionCatcher catcher;
@@ -97,8 +97,8 @@ main()
     client.runInBackground();
 
     bool printedCollisionMessage = false;
-    Agent agent(renderer, robotDimensions.size()); // Drawable agent
-    while (renderer.isOpen() && !joystick.isPressed(HID::JButton::B)) {
+    Agent agent(display, robotDimensions.size()); // Drawable agent
+    while (display.isOpen() && !joystick.isPressed(HID::JButton::B)) {
         // Check for exceptions on background thread
         catcher.check();
 
@@ -106,10 +106,11 @@ main()
         joystick.update();
 
         collisionDetector.setRobotPose(vicon.getObjectData().getPose());
-        if (collisionDetector.collisionOccurred()) {
+        Vector2<meter_t> collisionPosition;
+        if (collisionDetector.collisionOccurred(collisionPosition)) {
             if (!printedCollisionMessage) {
                 tank.stopMoving();
-                std::cout << "Collided with object " << collisionDetector.getCollidedObjectId() << std::endl;
+                LOGI << "Collided with object " << collisionDetector.getCollidedObjectId();
                 printedCollisionMessage = true;
             }
         } else {
@@ -118,9 +119,6 @@ main()
 
         // Render on display
         agent.setVertices(collisionDetector.getRobotVertices());
-        renderer.update(objectShapes, agent);
-
-        // Small delay so we don't hog CPU
-        std::this_thread::sleep_for(20ms);
+        display.update(objectShapes, agent);
     }
 }

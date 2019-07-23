@@ -1,4 +1,5 @@
 // BoB robotics includes
+#include "common/logging.h"
 #include "common/pose.h"
 #include "robots/control/obstacle_circumnavigation.h"
 #include "robots/control/robot_positioner.h"
@@ -8,10 +9,6 @@
 // Third-party includes
 #include "third_party/units.h"
 
-// Standard C++ includes
-#include <chrono>
-#include <thread>
-
 using namespace BoBRobotics;
 using namespace units::length;
 using namespace units::velocity;
@@ -19,7 +16,6 @@ using namespace units::angular_velocity;
 using namespace units::time;
 using namespace units::literals;
 using namespace units::angle;
-using namespace std::literals;
 
 int
 main()
@@ -110,12 +106,9 @@ main()
             // Check if the robot is within threshold distance and bearing of goal
             if (!avoidingPositioner.pollPositioner()) {
                 runPositioner = false;
-                std::cout << "Reached goal" << std::endl;
+                LOGI << "Reached goal";
                 robot.stopMoving();
             }
         }
-
-        // A small delay, so we don't eat all the CPU
-        std::this_thread::sleep_for(2ms);
     }
 }
