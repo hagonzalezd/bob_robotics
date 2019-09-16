@@ -77,8 +77,8 @@ protected:
 
 private:
     Input &m_VideoInput;
-    cv::Mat m_Frame;
 #ifdef USE_BOB_IMGPROC
+    cv::Mat m_Frame;
     cv::Mat m_Unwrapped;
     std::unique_ptr<ImgProc::OpenCVUnwrap360> m_Unwrapper;
     bool m_ShowUnwrapped = false;

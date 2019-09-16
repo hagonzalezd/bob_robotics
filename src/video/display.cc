@@ -84,11 +84,11 @@ void Display::close()
 
 bool Display::readFrame(cv::Mat &frame)
 {
+#ifdef USE_BOB_IMGPROC
     if (!m_VideoInput.readFrame(m_Frame)) {
         return false;
     }
 
-#ifdef USE_BOB_IMGPROC
     // unwrap frame if required
     if (m_Unwrapper && m_ShowUnwrapped) {
         m_Unwrapper->unwrap(m_Frame, m_Unwrapped);
@@ -96,6 +96,8 @@ bool Display::readFrame(cv::Mat &frame)
     } else {
         frame = m_Frame;
     }
+#else
+    return m_VideoInput.readFrame(frame);
 #endif
     return true;
 }
