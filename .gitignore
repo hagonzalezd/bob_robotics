@@ -5,6 +5,9 @@
 .directory
 .DS_Store
 
+# Produced by third_party/imgui
+**/*imgui.ini
+
 # Temporary files
 *~
 
@@ -26,6 +29,7 @@ bob_robotics.includes
 
 # Ignore object files
 **/*.a
+**/*.so
 **/*.o
 **/*.obj
 **/*.lib
@@ -142,7 +146,6 @@ ipch/
 *.ncb
 *.opendb
 *.opensdf
-*.sdf
 *.cachefile
 *.VC.db
 *.VC.VC.opendb

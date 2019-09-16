@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <limits>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 
 using namespace units::length;
@@ -96,7 +95,7 @@ void Tank::tank(float left, float right)
 
 void Tank::tankMaxScaled(const float left, const float right, const float max)
 {
-    const float larger = std::max(std::abs(left), std::abs(right));
+    const float larger = std::max(std::fabs(left), std::fabs(right));
     if (larger <= max) {
         tank(left, right);
     } else {
@@ -117,20 +116,14 @@ void Tank::tank(meters_per_second_t left, meters_per_second_t right, bool maxSca
     }
 }
 
-millimeter_t Tank::getRobotWidth() const
-{
-    throw std::runtime_error("getRobotWidth() is not implemented for this class");
-}
+BOB_NOT_IMPLEMENTED(millimeter_t Tank::getRobotWidth() const)
 
 meters_per_second_t Tank::getMaximumSpeed() const
 {
     return getMaximumSpeedProportion() * getAbsoluteMaximumSpeed();
 }
 
-meters_per_second_t Tank::getAbsoluteMaximumSpeed() const
-{
-    throw std::runtime_error("getAbsoluteMaximumSpeed() is not implemented for this class");
-}
+BOB_NOT_IMPLEMENTED(meters_per_second_t Tank::getAbsoluteMaximumSpeed() const)
 
 radians_per_second_t Tank::getMaximumTurnSpeed() const
 {

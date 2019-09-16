@@ -16,13 +16,14 @@ macro(BoB_project)
     include(CMakeParseArguments)
     cmake_parse_arguments(PARSED_ARGS
                           "GENN_CPU_ONLY"
-                          "EXECUTABLE;GENN_MODEL"
+                          "EXECUTABLE;GENN_MODEL;GAZEBO_PLUGIN"
                           "SOURCES;BOB_MODULES;EXTERNAL_LIBS;THIRD_PARTY;PLATFORMS;OPTIONS"
                           "${ARGV}")
-    if(NOT PARSED_ARGS_SOURCES)
+    BoB_set_options()
+
+    if(NOT PARSED_ARGS_SOURCES AND NOT PARSED_ARGS_GAZEBO_PLUGIN)
         message(FATAL_ERROR "SOURCES not defined for BoB project")
     endif()
-    BoB_set_options()
 
     # Check we're on a supported platform
     check_platform(${PARSED_ARGS_PLATFORMS})
@@ -54,6 +55,28 @@ macro(BoB_project)
         endforeach()
     endif()
 
+    if(PARSED_ARGS_GAZEBO_PLUGIN)
+        get_filename_component(shortname ${PARSED_ARGS_GAZEBO_PLUGIN} NAME)
+        string(REGEX REPLACE "\\.[^.]*$" "" target ${shortname})
+
+        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+        # I'm sometimes getting linker errors when ld is linking against the
+        # static libs for BoB modules (because Gazebo plugins, as shared libs,
+        # are PIC, but the static libs seem not to be). So let's just compile
+        # everything as PIC.
+        if(GNU_TYPE_COMPILER)
+            add_definitions(-fPIC)
+        endif()
+
+        # Gazebo plugins are shared libraries
+        add_library(${target} SHARED ${PARSED_ARGS_GAZEBO_PLUGIN})
+        list(APPEND BOB_TARGETS ${target})
+
+        # We need to link against Gazebo libs
+        BoB_external_libraries(gazebo)
+    endif()
+
     # If this project includes a GeNN model...
     if(PARSED_ARGS_GENN_MODEL)
         get_filename_component(genn_model_name "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
@@ -61,14 +84,19 @@ macro(BoB_project)
         set(genn_model_src "${CMAKE_CURRENT_SOURCE_DIR}/${PARSED_ARGS_GENN_MODEL}")
         set(genn_model_dest "${genn_model_dir}/runner.cc")
 
-        if(DEFINED ENV{CPU_ONLY} AND NOT $ENV{CPU_ONLY} STREQUAL 0)
-            set(GENN_CPU_ONLY TRUE)
-        else()
-            set(GENN_CPU_ONLY ${PARSED_ARGS_GENN_CPU_ONLY})
-        endif()
+        if(NOT GENN_CPU_ONLY)
+            if(DEFINED ENV{CPU_ONLY} AND NOT $ENV{CPU_ONLY} STREQUAL 0)
+                set(GENN_CPU_ONLY TRUE)
+            else()
+                set(GENN_CPU_ONLY ${PARSED_ARGS_GENN_CPU_ONLY})
+            endif()
+        endif(NOT GENN_CPU_ONLY)
         if(GENN_CPU_ONLY)
+            message("Building GeNN model for CPU only")
             add_definitions(-DCPU_ONLY)
             set(CPU_FLAG -c)
+        else()
+            message("Building GeNN model with CUDA")
         endif()
 
         # Custom command to generate source code with GeNN
@@ -150,24 +178,6 @@ macro(BoB_set_options)
             endif()
         endforeach()
     endif()
-
-    # For the various USE_* C macros we want defined
-    set_use_macros()
-endmacro()
-
-# Set all the USE_* macros before we do anything else
-macro(set_use_macros)
-    foreach(lib IN LISTS PARSED_ARGS_EXTERNAL_LIBS)
-        add_use_macro(${lib})
-    endforeach()
-    foreach(lib IN LISTS PARSED_ARGS_THIRD_PARTY)
-        add_use_macro(${lib})
-    endforeach()
-    foreach(module IN LISTS PARSED_ARGS_BOB_MODULES)
-        # Some BoB modules have slashes in the name; replace with underscore
-        string(REPLACE / _ module ${module})
-        add_use_macro(BOB_${module})
-    endforeach()
 endmacro()
 
 # Build a module with extra libraries etc. Currently used by robots/bebop
@@ -216,21 +226,13 @@ macro(BoB_init)
     endif()
 endmacro()
 
-function(add_compile_flags EXTRA_ARGS)
+macro(add_compile_flags EXTRA_ARGS)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_ARGS}")
-endfunction()
+endmacro()
 
-function(add_linker_flags EXTRA_ARGS)
+macro(add_linker_flags EXTRA_ARGS)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EXTRA_ARGS}")
-endfunction()
-
-# Sets a C++ macro, so you can have compile-time options in your header (e.g.
-# some functions that will only work if your project uses OpenCV)
-function(add_use_macro libname)
-    string(TOUPPER "${libname}" libnameupper)
-    string(REPLACE - _ libnameupper ${libnameupper})
-    add_definitions(-DUSE_${libnameupper})
-endfunction()
+endmacro()
 
 macro(always_included_packages)
     # Assume we always want threading
@@ -240,26 +242,28 @@ macro(always_included_packages)
     # with the include path and link flags and it seems that this target isn't
     # "passed up" by add_subdirectory(), so we always include these packages on
     # the off-chance we need them.
-    if(NOT TARGET Eigen3::Eigen)
-        find_package(Eigen3 QUIET)
-    endif()
-    if(NOT TARGET OpenMP::OpenMP_CXX)
+    if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT TARGET OpenMP::OpenMP_CXX)
         find_package(OpenMP QUIET)
     endif()
     if(NOT TARGET GLEW::GLEW)
         find_package(GLEW QUIET)
     endif()
 
-    # On Unix we use pkg-config to find SDL2, because the CMake package may not
-    # be present
-    if(NOT UNIX AND NOT TARGET SDL2::SDL2)
-        find_package(SDL2)
+    # On Unix we use pkg-config to find SDL2 or Eigen, because the CMake
+    # packages may not be present
+    if(NOT UNIX)
+        if(NOT TARGET SDL2::SDL2)
+            find_package(SDL2)
+        endif()
+        if(NOT TARGET Eigen3::Eigen)
+            find_package(Eigen3 QUIET)
+        endif()
     endif()
 endmacro()
 
 macro(BoB_build)
     # Don't build i2c code if NO_I2C environment variable is set
-    if(NOT I2C_MESSAGE_DISPLAYED AND (NO_I2C OR (DEFINED ENV{NO_I2C} AND NOT ENV{NO_I2C} EQUAL 0)))
+    if(NOT I2C_MESSAGE_DISPLAYED AND (NO_I2C OR (NOT "$ENV{NO_I2C}" STREQUAL 0 AND NOT "$ENV{NO_I2C}" STREQUAL "")))
         set(I2C_MESSAGE_DISPLAYED TRUE)
         message("NO_I2C is set: not building i2c code")
         set(NO_I2C TRUE)
@@ -270,6 +274,7 @@ macro(BoB_build)
     if (NOT CMAKE_BUILD_TYPE)
         set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
     endif()
+    message("Build type: ${CMAKE_BUILD_TYPE}")
 
     if(NOT WIN32)
         # Use ccache if present to speed up repeat builds
@@ -287,10 +292,6 @@ macro(BoB_build)
         add_definitions(-DDEBUG)
     endif()
 
-    # Use C++14
-    set(CMAKE_CXX_STANDARD 14)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
     # Flags for gcc and clang
     if (NOT GNU_TYPE_COMPILER AND ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
         set(GNU_TYPE_COMPILER TRUE)
@@ -303,6 +304,26 @@ macro(BoB_build)
         # Enable warnings and set architecture
         add_compile_flags("-Wall -Wpedantic -Wextra -march=$ENV{ARCH}")
 
+        # Gcc has an annoying feature where you can mark functions with
+        # __attribute__((warn_unused_result)) and then the calling code *has*
+        # to do something with the result and can't ignore it; hacks such as
+        # (void) annoyingFunction() don't work either. We're mostly
+        # seeing this warning for calls to std::system() (in our code and third-
+        # party code), but in those cases we generally really don't care about
+        # the return value. So let's just disable it globally to save faffing
+        # around.
+        add_compile_flags(-Wno-unused-result)
+
+        # I'm getting warnings based for code in the Eigen headers, so let's
+        # just disable it. I tried setting this flag only when we're actually
+        # using Eigen, but that didn't seem to work, and it seems pretty
+        # harmless, so it's probably fine to just disable it globally.
+        #          - AD
+        #
+        # Eigen version: 3.3.7
+        # gcc version:   9.1.0
+        add_compile_flags(-Wno-deprecated-copy)
+
         # Disable optimisation for debug builds
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 
@@ -311,11 +332,23 @@ macro(BoB_build)
         set(CMAKE_EXE_LINKER_FLAGS "-Wl,--allow-multiple-definition")
     endif()
 
+    # Use C++14. On Ubuntu 16.04, seemingly setting CMAKE_CXX_STANDARD doesn't
+    # work, so add the compiler flag manually.
+    #
+    # Conversely, only setting the compiler flag means that the surveyor example
+    # mysteriously gets linker errors on Ubuntu 18.04 and my Arch Linux machine.
+    #       - AD
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        add_compile_flags(-std=c++14)
+    endif()
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
     # Set include dirs and link libraries for this module/project
     always_included_packages()
-    BoB_modules(${PARSED_ARGS_BOB_MODULES})
     BoB_external_libraries(${PARSED_ARGS_EXTERNAL_LIBS})
     BoB_third_party(${PARSED_ARGS_THIRD_PARTY})
+    BoB_modules(${PARSED_ARGS_BOB_MODULES})
 
     # Link threading lib
     BoB_add_link_libraries(${CMAKE_THREAD_LIBS_INIT})
@@ -393,6 +426,10 @@ macro(BoB_add_link_libraries)
         CACHE INTERNAL "${PROJECT_NAME}: Libraries" FORCE)
 endmacro()
 
+function(BoB_deprecated WHAT ALTERNATIVE)
+    message(WARNING "!!!!! WARNING: Use of ${WHAT} in BoB robotics code is deprecated and will be removed in future. Use ${ALTERNATIVE} instead. !!!!!")
+endfunction()
+
 function(BoB_add_include_directories)
     # Sometimes we get newline characters in an *_INCLUDE_DIRS variable (e.g.
     # with the OpenCV package) and this breaks CMake
@@ -460,13 +497,19 @@ function(BoB_external_libraries)
         elseif(${lib} STREQUAL opencv)
             BoB_find_package(OpenCV REQUIRED)
         elseif(${lib} STREQUAL eigen3)
-            if(NOT TARGET Eigen3::Eigen)
-                message(FATAL_ERROR "Eigen 3 not found")
+            if(UNIX)
+                BoB_add_pkg_config_libraries(eigen3)
+            else()
+                if(NOT TARGET Eigen3::Eigen)
+                    message(FATAL_ERROR "Eigen 3 not found")
+                endif()
+                BoB_add_link_libraries(Eigen3::Eigen)
             endif()
-            BoB_add_link_libraries(Eigen3::Eigen)
 
             # For CMake < 3.9, we need to make the target ourselves
-            if(NOT OpenMP_CXX_FOUND)
+            if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+                add_compile_flags(-fopenmp)
+            elseif(NOT OpenMP_CXX_FOUND)
                 find_package(Threads REQUIRED)
                 add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
                 set_property(TARGET OpenMP::OpenMP_CXX
@@ -496,10 +539,18 @@ function(BoB_external_libraries)
                 message(FATAL_ERROR "Could not find SDL2")
                 BoB_add_link_libraries(SDL2::SDL2)
             endif()
+
+            # Sorry, Norbert ;-). I can try to help you install SFML if it helps!
+            #       -- Alex
+            BoB_deprecated(SDL2 SFML)
         elseif(${lib} STREQUAL glfw3)
             find_package(glfw3 REQUIRED)
             BoB_add_link_libraries(glfw)
             BoB_external_libraries(opengl)
+
+            # Most of the GLFW code has already been updated, but we still
+            # need GLFW temporarily for third_party/imgui
+            BoB_deprecated(GLFW SFML)
         elseif(${lib} STREQUAL glew)
             if(NOT TARGET GLEW::GLEW)
                 message(FATAL_ERROR "Could not find glew")
@@ -518,11 +569,27 @@ function(BoB_external_libraries)
             find_package(GTest REQUIRED)
             BoB_add_include_directories(${GTEST_INCLUDE_DIRS})
             BoB_add_link_libraries(${GTEST_LIBRARIES})
+        elseif(${lib} STREQUAL gazebo)
+            # If Gazebo is added as a dependency multiple times (e.g. from
+            # multiple CMakeLists.txt files) then I'm getting an error from the
+            # target FreeImage::FreeImage being created multiple times - AD
+            if(NOT TARGET FreeImage::FreeImage)
+                find_package(gazebo REQUIRED)
+                BoB_add_include_directories(${GAZEBO_INCLUDE_DIRS})
+                BoB_add_link_libraries(${GAZEBO_LIBRARIES})
+                link_directories(${GAZEBO_LIBRARY_DIRS})
+                add_compile_flags(${GAZEBO_CXX_FLAGS})
+            endif()
         elseif(${lib} STREQUAL spineml_simulation)
+            # Find where user has installed GeNN
             exec_or_fail("${BOB_ROBOTICS_PATH}/cmake/find_genn.sh")
-            BoB_add_include_directories("${SHELL_OUTPUT}/include/spineml/simulator")
-            BoB_add_link_libraries(spineml_simulator spineml_common dl)
-            link_directories("${SHELL_OUTPUT}")
+            string(STRIP "${SHELL_OUTPUT}" GENN_PATH) # Strip newline
+            message("GENN_PATH: ${GENN_PATH}")
+
+            BoB_add_include_directories("${GENN_PATH}/include")
+            BoB_add_link_libraries("${GENN_PATH}/lib/libspineml_simulator.a"
+                                   "${GENN_PATH}/lib/libspineml_common.a"
+                                   dl)
         else()
             message(FATAL_ERROR "${lib} is not a recognised library name")
         endif()
@@ -547,8 +614,16 @@ function(BoB_third_party)
             if(WIN32)
                 add_definitions(-DWITHOUT_NUMPY)
             else()
-                exec_or_fail("python" "${BOB_ROBOTICS_PATH}/cmake/find_numpy.py")
-                BoB_add_include_directories(${SHELL_OUTPUT})
+                execute_process(COMMAND "python" "${BOB_ROBOTICS_PATH}/cmake/find_numpy.py"
+                                RESULT_VARIABLE rv
+                                OUTPUT_VARIABLE numpy_include_path)
+
+                # If we have numpy then use it, otherwise matplotlibcpp will work without it
+                if(${rv} EQUAL 0)
+                    BoB_add_include_directories(${numpy_include_path})
+                else()
+                    add_definitions(-DWITHOUT_NUMPY)
+                endif()
             endif()
         else()
             # Extra actions
@@ -564,6 +639,12 @@ function(BoB_third_party)
                 BoB_add_link_libraries(ev3dev)
             elseif(${module} STREQUAL imgui)
                 BoB_add_link_libraries(imgui)
+
+                # Extra libs needed
+                BoB_external_libraries(glew sfml-graphics)
+
+                # Suppress warning
+                add_compile_flags(-Wno-stringop-truncation)
             endif()
 
             # Checkout git submodules under this path

@@ -26,7 +26,8 @@ int main(int argc, char **argv)
     LOGI << "Found object: " << objectName;
 
     viconCaptureControl.startRecording("test1");
-    for (int i = 0; i < 1000; i++) {
+
+    for (int i = 0; i < 10000; i++) {
         auto objectData = vicon.getObjectData(objectName);
         const auto position = objectData.getPosition<>();
         const auto attitude = objectData.getAttitude<degree_t>();
