@@ -4,6 +4,8 @@ project(build_all)
 get_filename_component(root_dirname ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 message("Building BoB robotics ${root_dirname}...")
 
+set(BUILD_ALL on CACHE INTERNAL "Flag to indicate that there is a parent project")
+
 # Build modules + third-party libs in here
 set(BOB_DIR "${CMAKE_CURRENT_BINARY_DIR}/BoB")
 

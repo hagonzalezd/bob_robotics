@@ -178,7 +178,37 @@ macro(BoB_set_options)
             endif()
         endforeach()
     endif()
+
+    # For the various USE_* C macros we want defined
+    set_use_macros()
 endmacro()
+
+# Set all the USE_* macros before we do anything else
+macro(set_use_macros)
+    foreach(lib IN LISTS PARSED_ARGS_EXTERNAL_LIBS)
+        add_use_macro(${lib})
+    endforeach()
+    foreach(lib IN LISTS PARSED_ARGS_THIRD_PARTY)
+        add_use_macro(${lib})
+    endforeach()
+    foreach(module IN LISTS PARSED_ARGS_BOB_MODULES)
+        if(NOT "${module}" STREQUAL "")
+            # Some BoB modules have slashes in the name; replace with underscore
+            string(REPLACE / _ module ${module})
+            add_use_macro(BOB_${module})
+        endif()
+    endforeach()
+endmacro()
+
+# Sets a C++ macro, so you can have compile-time options in your header (e.g.
+# some functions that will only work if your project uses OpenCV)
+function(add_use_macro libname)
+    string(TOUPPER "${libname}" libnameupper)
+    string(REPLACE - _ libnameupper ${libnameupper})
+
+    # Pass USE flags to parent project
+    set(USE_FLAGS "${USE_FLAGS};${libnameupper}" CACHE INTERNAL "${PROJECT_NAME}: USE flags")
+endfunction()
 
 # Build a module with extra libraries etc. Currently used by robots/bebop
 # module because the stock BoB_module() isn't flexible enough.
@@ -189,10 +219,16 @@ macro(BoB_module_custom)
     cmake_parse_arguments(PARSED_ARGS
                           ""
                           ""
-                          "SOURCES;BOB_MODULES;EXTERNAL_LIBS;THIRD_PARTY;PLATFORMS;OPTIONS"
+                          "SOURCES;BOB_MODULES;OPTIONAL_BOB_MODULES;EXTERNAL_LIBS;THIRD_PARTY;PLATFORMS;OPTIONS"
                           "${ARGV}")
     if(NOT PARSED_ARGS_SOURCES)
         message(FATAL_ERROR "SOURCES not defined for BoB module")
+    endif()
+
+    # Make sure to also build optional module dependencies if we're building all
+    # examples, otherwise we'll get missing symbols
+    if(BUILD_ALL)
+        set(PARSED_ARGS_BOB_MODULES "${PARSED_ARGS_BOB_MODULES};${PARSED_ARGS_OPTIONAL_BOB_MODULES}")
     endif()
     BoB_set_options()
 
@@ -369,6 +405,16 @@ macro(BoB_build)
     foreach(target IN LISTS BOB_TARGETS)
         target_link_libraries(${target} ${${PROJECT_NAME}_LIBRARIES})
     endforeach()
+
+    # Set USE flags; includes flags from child projects
+    list(REMOVE_DUPLICATES USE_FLAGS)
+    message("USE flags for ${PROJECT_NAME}")
+    foreach(flag IN LISTS USE_FLAGS)
+        if(NOT "${flag}" STREQUAL "")
+            add_definitions(-DUSE_${flag})
+            message("    -- USE_${flag}")
+        endif()
+    endforeach(flag IN LISTS USE_FLAGS)
 endmacro()
 
 function(check_platform)
