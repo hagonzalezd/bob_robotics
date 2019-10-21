@@ -166,6 +166,10 @@ macro(BoB_build)
         add_definitions(-DNO_I2C)
     endif()
 
+    # Add macro so that programs know where the root folder is for e.g. loading
+    # resources
+    add_definitions(-DBOB_ROBOTICS_PATH="${BOB_ROBOTICS_PATH}")
+
     # Default to building release type
     if (NOT CMAKE_BUILD_TYPE)
         set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
@@ -218,7 +222,9 @@ macro(BoB_build)
         #
         # Eigen version: 3.3.7
         # gcc version:   9.1.0
-        add_compile_flags(-Wno-deprecated-copy)
+        if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0)
+            add_compile_flags(-Wno-deprecated-copy)
+        endif()
 
         # Disable optimisation for debug builds
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
@@ -239,6 +245,23 @@ macro(BoB_build)
     endif()
     set(CMAKE_CXX_STANDARD 14)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+    # Irritatingly, neither GCC nor Clang produce nice ANSI-coloured output if they detect
+    # that output "isn't a terminal" - which seems to include whatever pipe-magick cmake includes.
+    # https://medium.com/@alasher/colored-c-compiler-output-with-ninja-clang-gcc-10bfe7f2b949
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+       add_compile_flags(-fdiagnostics-color=always)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+       add_compile_flags(-fcolor-diagnostics)
+    endif ()
+
+    # Different Jetson devices have different user-facing I2C interfaces
+    # so read the chip ID and add preprocessor macro
+    if(EXISTS /sys/module/tegra_fuse/parameters/tegra_chip_id)
+        file(READ /sys/module/tegra_fuse/parameters/tegra_chip_id TEGRA_CHIP_ID)
+        add_definitions(-DTEGRA_CHIP_ID=${TEGRA_CHIP_ID})
+        message("Tegra chip id: ${TEGRA_CHIP_ID}")
+    endif()
 
     # Set include dirs and link libraries for this module/project
     always_included_packages()
@@ -278,4 +301,4 @@ macro(BoB_build)
 endmacro()
 
 # Set output directories for libs and executables
-set(BOB_ROBOTICS_PATH "${CMAKE_CURRENT_LIST_DIR}/..")
+get_filename_component(BOB_ROBOTICS_PATH .. ABSOLUTE BASE_DIR "${CMAKE_CURRENT_LIST_DIR}")

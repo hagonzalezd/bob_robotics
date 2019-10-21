@@ -1,11 +1,28 @@
 // BoB robotics includes
-#include "common/get_new_path.h"
+#include "common/path.h"
+
+// Standard C includes
+#include <cstdlib>
 
 // Standard C++ includes
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 namespace BoBRobotics {
+namespace Path {
+filesystem::path
+getRepoPath()
+{
+    return filesystem::path{ BOB_ROBOTICS_PATH };
+}
+
+filesystem::path
+getResourcesPath()
+{
+    return getRepoPath() / "resources";
+}
+
 filesystem::path
 getNewPath(const filesystem::path &rootPath, const std::string &extension)
 {
@@ -37,4 +54,5 @@ getNewPath(const filesystem::path &rootPath, const std::string &extension)
     }
     return path;
 }
+} // Path
 } // BoBRobotics
