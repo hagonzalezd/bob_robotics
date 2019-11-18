@@ -7,11 +7,18 @@
 #include "robots/bebop/bebop.h"
 #include "robots/bebop/gps_log.h"
 
+#ifdef OPTION_DUMMY
+#include "video/randominput.h"
+#include <random>
+#endif
+
 // OpenCV
 #include <opencv2/opencv.hpp>
 
 // Standard C++ includes
 #include <atomic>
+#include <chrono>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -21,22 +28,25 @@ using namespace BoBRobotics;
 using namespace BoBRobotics::Robots;
 using namespace std::literals;
 
-constexpr auto imageWritePeriod = 100ms;
+constexpr auto imageWritePeriod = 250ms;
+
+using GPSGetter = std::function<void(Bebop::GPSData &)>;
 
 // Logs GPS data and images
 class Logger
 {
 public:
     Logger(const filesystem::path &dbPath,
-           Bebop &drone,
+           GPSGetter gpsGetter,
+           Video::Input &camera,
            HID::Joystick &joystick,
            std::mutex &loggerMutex)
       : m_DatabasePath{ dbPath }
       , m_Logger{ m_DatabasePath / "gps.csv" }
       , m_ImageWriterThread{ &Logger::logImages, this }
       , m_Joystick{ joystick }
-      , m_Drone{ drone }
-      , m_Camera{ drone.getVideoStream() }
+      , m_GPSGetter{ gpsGetter }
+      , m_Camera{ camera }
       , m_LoggerMutex{ loggerMutex }
     {
         LOGI << "Saving files to " << m_DatabasePath;
@@ -61,8 +71,8 @@ private:
     Robots::BebopGPSLog m_Logger;
     std::thread m_ImageWriterThread;
     HID::Joystick &m_Joystick;
-    Bebop &m_Drone;
-    Bebop::VideoStream &m_Camera;
+    GPSGetter m_GPSGetter;
+    Video::Input &m_Camera;
     std::mutex &m_LoggerMutex;
     std::atomic_bool m_StopFlag{ false };
 
@@ -73,13 +83,12 @@ private:
         cv::Mat fr;
         while (!m_StopFlag) {
             const auto imagePath = "image_" + std::to_string(++imageCount) + ".png";
-            std::lock_guard<std::mutex> guard{ m_LoggerMutex };
 
-            // We don't check return value because we don't care how new the data is
-            m_Drone.getGPSData(gps);
-
-            m_Camera.readFrameSync(fr);
+            m_GPSGetter(gps);
+            m_Camera.readFrame(fr);
             BOB_ASSERT(cv::imwrite((m_DatabasePath / imagePath).str(), fr));
+
+            std::lock_guard<std::mutex> guard{ m_LoggerMutex };
             m_Logger.log(gps, imagePath);
 
             LOGD << "Saving image to " << imagePath;
@@ -94,43 +103,58 @@ int bob_main(int, char **argv)
 {
     // Save files relative to program's path
     const auto rootPath = filesystem::path{ argv[0] }.parent_path();
-    std::unique_ptr<Logger> logger;
+    std::shared_ptr<Logger> logger;
     std::mutex loggerMutex; // We access it from different threads
 
     HID::Joystick joystick;
-    Bebop drone;
-    drone.addJoystick(joystick);
 
-    LOGI << "Toggle image collection with Y button";
-    joystick.addHandler([&](HID::JButton button, bool pressed) {
-        if (pressed && button == HID::JButton::Y) {
-            std::lock_guard<std::mutex> guard{ loggerMutex };
-            if (!logger) {
-                // Start logging
-                LOGI << "Starting logging";
-                const auto dbPath = Path::getNewPath(rootPath);
-                BOB_ASSERT(filesystem::create_directory(dbPath));
-                logger = std::make_unique<Logger>(dbPath, drone, joystick, loggerMutex);
-            } else {
-                // Stop logging
-                LOGI << "Stopping logging";
-                logger.reset(); // Destroy logger object
-            }
-            return true;
-        } else {
-            return false;
-        }
-    });
-
-    // If we're in logging mode, then log coords (this happens about once per sec)
-    drone.setGPSUpdateHandler([&](const auto &gps) {
+    auto onGPSUpdate = [&](const Bebop::GPSData &gps) {
         LOGD << "Position: " << gps.toString();
 
-        std::lock_guard<std::mutex> guard{ loggerMutex };
-        if (logger) {
-            logger->logGPS(gps);
+        auto loggerLocal = logger;
+        if (loggerLocal) {
+            std::lock_guard<std::mutex> guard{ loggerMutex };
+            loggerLocal->logGPS(gps);
         }
-    });
+    };
+
+#ifdef OPTION_DUMMY
+    using namespace units::angle;
+    using namespace units::length;
+    Video::RandomInput<> camera({ 100, 100 });
+
+    const auto getGPS = [](Bebop::GPSData &gps) {
+        const auto rnd = [](double low, double high) {
+            static std::default_random_engine generator{ std::random_device{}() };
+            static std::uniform_real_distribution<double> dist{ 0, 1 };
+            return low + dist(generator) * (high - low);
+        };
+
+        gps.coordinate.lat = degree_t{ rnd(-90, 90) };
+        gps.coordinate.lon = degree_t{ rnd(-180, 180) };
+        gps.coordinate.height = meter_t{ rnd(5, 15) };
+        gps.latError = meter_t{ rnd(-5, 5) };
+        gps.lonError = meter_t{ rnd(-5, 5) };
+        gps.heightError = meter_t{ -3, 3 };
+        gps.numberOfSatellites = 3;
+    };
+
+    // Simulate drone by giving random GPS readings every second
+    std::thread gpsThread{ [&]() {
+        while (true) {
+            std::this_thread::sleep_for(1s);
+            Bebop::GPSData gps;
+            getGPS(gps);
+            onGPSUpdate(gps);
+        }
+    } };
+#else
+    Bebop drone;
+    auto &camera = drone.getVideoStream();
+    drone.addJoystick(joystick);
+
+    // If we're in logging mode, then log coords (this happens about once per sec)
+    drone.setGPSUpdateHandler(onGPSUpdate);
 
     // Terminate program when drone lands
     drone.setFlyingStateChangedHandler([&joystick](const auto state) {
@@ -142,6 +166,31 @@ int bob_main(int, char **argv)
             joystick.stop();
         default:
             break;
+        }
+    });
+
+    auto getGPS = [&drone](Bebop::GPSData &gps) {
+        drone.getGPSData(gps);
+    };
+#endif
+
+    LOGI << "Toggle image collection with Y button";
+    joystick.addHandler([&](HID::JButton button, bool pressed) {
+        if (pressed && button == HID::JButton::Y) {
+            if (!logger) {
+                // Start logging
+                LOGI << "Starting logging";
+                const auto dbPath = Path::getNewPath(rootPath);
+                BOB_ASSERT(filesystem::create_directory(dbPath));
+                logger = std::make_shared<Logger>(dbPath, getGPS, camera, joystick, loggerMutex);
+            } else {
+                // Stop logging
+                LOGI << "Stopping logging";
+                logger.reset(); // Destroy logger object
+            }
+            return true;
+        } else {
+            return false;
         }
     });
 
