@@ -14,7 +14,7 @@ BebopGPSLog::BebopGPSLog(const filesystem::path &filePath)
     BOB_ASSERT(m_ofs.good());
 
     // CSV header
-    m_ofs << "Lat [deg], Lon [deg], Height [m], LatErr [deg], LonErr [deg], HeightErr [m], ImagePath" << std::endl;
+    m_ofs << "Lat [deg], Lon [deg], Height [m], LatErr [m], LonErr [m], HeightErr [m], ImagePath" << std::endl;
 }
 
 void
