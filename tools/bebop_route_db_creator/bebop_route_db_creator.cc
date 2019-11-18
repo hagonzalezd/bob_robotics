@@ -27,11 +27,11 @@ constexpr auto imageWritePeriod = 100ms;
 class Logger
 {
 public:
-    Logger(const filesystem::path &pathRoot,
+    Logger(const filesystem::path &dbPath,
            Bebop &drone,
            HID::Joystick &joystick,
            std::mutex &loggerMutex)
-      : m_DatabasePath{ Path::getNewPath(pathRoot) }
+      : m_DatabasePath{ dbPath }
       , m_Logger{ m_DatabasePath / "gps.csv" }
       , m_ImageWriterThread{ &Logger::logImages, this }
       , m_Joystick{ joystick }
@@ -40,6 +40,7 @@ public:
       , m_LoggerMutex{ loggerMutex }
     {
         LOGI << "Saving files to " << m_DatabasePath;
+        filesystem::create_directory(m_DatabasePath);
     }
 
     ~Logger()
@@ -93,7 +94,7 @@ private:
 int bob_main(int, char **argv)
 {
     // Save files relative to program's path
-    const auto rootPath = filesystem::path{ argv[0] }.parent_path() / "recording_";
+    const auto rootPath = filesystem::path{ argv[0] }.parent_path();
     std::unique_ptr<Logger> logger;
     std::mutex loggerMutex; // We access it from different threads
 
@@ -108,7 +109,9 @@ int bob_main(int, char **argv)
             if (!logger) {
                 // Start logging
                 LOGI << "Starting logging";
-                logger = std::make_unique<Logger>(rootPath, drone, joystick, loggerMutex);
+                const auto dbPath = Path::getNewPath(rootPath);
+                BOB_ASSERT(filesystem::create_directory(dbPath));
+                logger = std::make_unique<Logger>(dbPath, drone, joystick, loggerMutex);
             } else {
                 // Stop logging
                 LOGI << "Stopping logging";
