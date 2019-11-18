@@ -39,15 +39,13 @@ public:
     Logger(const filesystem::path &dbPath,
            GPSGetter gpsGetter,
            Video::Input &camera,
-           HID::Joystick &joystick,
-           std::mutex &loggerMutex)
+           HID::Joystick &joystick)
       : m_DatabasePath{ dbPath }
       , m_Logger{ m_DatabasePath / "gps.csv" }
       , m_ImageWriterThread{ &Logger::logImages, this }
       , m_Joystick{ joystick }
       , m_GPSGetter{ gpsGetter }
       , m_Camera{ camera }
-      , m_LoggerMutex{ loggerMutex }
     {
         LOGI << "Saving files to " << m_DatabasePath;
         filesystem::create_directory(m_DatabasePath);
@@ -63,6 +61,7 @@ public:
 
     void logGPS(const Bebop::GPSData &gps)
     {
+        std::lock_guard<std::mutex> guard{ m_LoggerMutex };
         m_Logger.log(gps);
     }
 
@@ -73,7 +72,7 @@ private:
     HID::Joystick &m_Joystick;
     GPSGetter m_GPSGetter;
     Video::Input &m_Camera;
-    std::mutex &m_LoggerMutex;
+    std::mutex m_LoggerMutex;
     std::atomic_bool m_StopFlag{ false };
 
     void logImages()
@@ -88,8 +87,10 @@ private:
             m_Camera.readFrame(fr);
             BOB_ASSERT(cv::imwrite((m_DatabasePath / imagePath).str(), fr));
 
-            std::lock_guard<std::mutex> guard{ m_LoggerMutex };
-            m_Logger.log(gps, imagePath);
+            {
+                std::lock_guard<std::mutex> guard{ m_LoggerMutex };
+                m_Logger.log(gps, imagePath);
+            }
 
             LOGD << "Saving image to " << imagePath;
 
@@ -104,7 +105,6 @@ int bob_main(int, char **argv)
     // Save files relative to program's path
     const auto rootPath = filesystem::path{ argv[0] }.parent_path();
     std::shared_ptr<Logger> logger;
-    std::mutex loggerMutex; // We access it from different threads
 
     HID::Joystick joystick;
 
@@ -113,7 +113,6 @@ int bob_main(int, char **argv)
 
         auto loggerLocal = logger;
         if (loggerLocal) {
-            std::lock_guard<std::mutex> guard{ loggerMutex };
             loggerLocal->logGPS(gps);
         }
     };
@@ -182,11 +181,11 @@ int bob_main(int, char **argv)
                 LOGI << "Starting logging";
                 const auto dbPath = Path::getNewPath(rootPath);
                 BOB_ASSERT(filesystem::create_directory(dbPath));
-                logger = std::make_shared<Logger>(dbPath, getGPS, camera, joystick, loggerMutex);
+                logger = std::make_shared<Logger>(dbPath, getGPS, camera, joystick);
             } else {
                 // Stop logging
                 LOGI << "Stopping logging";
-                logger.reset(); // Destroy logger object
+                logger.reset();
             }
             return true;
         } else {
