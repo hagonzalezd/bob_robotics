@@ -3,6 +3,9 @@
 #include "common/logging.h"
 #include "common/macros.h"
 
+// Standard C++ includes
+#include <sstream>
+
 using namespace units::angle;
 using namespace units::length;
 using namespace units::velocity;
@@ -41,6 +44,12 @@ checkError(eARDISCOVERY_ERROR err)
     }
 }
 
+std::ostream &
+operator<<(std::ostream &os, const BoBRobotics::Robots::Bebop::GPSData &gps)
+{
+    return os << gps.toString();
+}
+
 namespace BoBRobotics {
 namespace Robots {
 
@@ -64,6 +73,17 @@ DEFINE_GETTER(int32_t, I32)
 DEFINE_GETTER(float, Float)
 DEFINE_GETTER(double, Double)
 DEFINE_GETTER(const char *, String)
+
+std::string
+Bebop::GPSData::toString() const
+{
+    std::stringstream ss;
+    ss << this->coordinate.lat.value() << "±" << this->latError.value() << "° "
+       << this->coordinate.lon.value() << "±" << this->lonError.value() << "° "
+       << this->coordinate.height.value() << "±" << this->heightError.value() << " m ("
+       << this->numberOfSatellites << " satellite(s))";
+    return ss.str();
+}
 
 // We also have to give declarations for these variables, because c++ is weird
 constexpr degree_t Bebop::DefaultMaximumTilt;

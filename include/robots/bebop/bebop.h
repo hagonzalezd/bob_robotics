@@ -26,6 +26,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <ostream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -187,6 +188,8 @@ public:
         MapCoordinate::GPSCoordinate coordinate{ unan<degree_t>(), unan<degree_t>(), unan<meter_t>() };
         meter_t latError{ unan<meter_t>() }, lonError{ unan<meter_t>() }, heightError{ unan<meter_t>() };
         int numberOfSatellites = 0;
+
+        std::string toString() const;
     };
 
     //! The state of an animation maneuvre
@@ -300,6 +303,7 @@ public:
     AnimationState getAnimationState() const;
     void cancelCurrentAnimation();
     bool isVideoRecording() const;
+    void setGPSUpdateHandler(GPSUpdateHandler callback);
 
     // calibration
     void doFlatTrimCalibration();
