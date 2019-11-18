@@ -14,16 +14,20 @@ BebopGPSLog::BebopGPSLog(const filesystem::path &filePath)
     BOB_ASSERT(m_ofs.good());
 
     // CSV header
-    m_ofs << "Lat [deg], Lon [deg], Height [m], LatErr [m], LonErr [m], HeightErr [m], ImagePath" << std::endl;
+    m_ofs << "Time [ms], Lat [deg], Lon [deg], Height [m], LatErr [m], LonErr [m], HeightErr [m], ImagePath" << std::endl;
+
+    // Start timer
+    m_Stopwatch.start();
 }
 
 void
 BebopGPSLog::log(const Bebop::GPSData &gps, const filesystem::path &imagePath)
 {
-    m_ofs << gps.coordinate.lat.value() << ", " << gps.coordinate.lon.value()
-          << ", " << gps.coordinate.height.value() << ", "
-          << gps.latError.value() << ", " << gps.lonError.value() << ", "
-          << gps.heightError.value() << ", " << imagePath << std::endl;
+    const units::time::millisecond_t time = m_Stopwatch.elapsed();
+    m_ofs << time.value() << ", " << gps.coordinate.lat.value() << ", "
+          << gps.coordinate.lon.value() << ", " << gps.coordinate.height.value()
+          << ", " << gps.latError.value() << ", " << gps.lonError.value()
+          << ", " << gps.heightError.value() << ", " << imagePath << std::endl;
 }
 }
 }
