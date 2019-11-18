@@ -72,15 +72,14 @@ private:
         Bebop::GPSData gps;
         cv::Mat fr;
         while (!m_StopFlag) {
-            const auto imagePath = m_DatabasePath / ("image_" + std::to_string(++imageCount) + ".png");
-
+            const auto imagePath = "image_" + std::to_string(++imageCount) + ".png";
             std::lock_guard<std::mutex> guard{ m_LoggerMutex };
 
             // We don't check return value because we don't care how new the data is
             m_Drone.getGPSData(gps);
 
             m_Camera.readFrameSync(fr);
-            BOB_ASSERT(cv::imwrite(imagePath.str(), fr));
+            BOB_ASSERT(cv::imwrite((m_DatabasePath / imagePath).str(), fr));
             m_Logger.log(gps, imagePath);
 
             LOGD << "Saving image to " << imagePath;
