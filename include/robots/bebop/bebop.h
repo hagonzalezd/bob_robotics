@@ -451,6 +451,7 @@ private:
     void onVideoRecordingStateChanged(const ARDict &dict);
     void onHorizontalPanoramaStateChanged(const ARDict &dict);
     void onGPSLocationChanged(const ARDict &dict);
+    void onNumberOfGPSSatellitesChanged(const ARDict &dict);
     void onMoveToStateChanged(const ARDict &dict);
     void onMotionDetectionChanged(const ARDict &dict);
     void onMotionStateChanged(const ARDict &dict);

@@ -852,6 +852,21 @@ Bebop::onGPSLocationChanged(const ARDict &dict)
     }
 }
 
+void
+Bebop::onNumberOfGPSSatellitesChanged(const ARDict &dict)
+{
+    std::lock_guard<std::mutex> guard(m_GPSDataMutex);
+    uint8_t val;
+    if (dict.get(val, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_GPSSTATE_NUMBEROFSATELLITECHANGED_NUMBEROFSATELLITE)) {
+        m_GPSData.numberOfSatellites = val;
+
+        // Run callback function if specified; we still hold the lock
+        if (m_GPSUpdateCallback) {
+            m_GPSUpdateCallback(m_GPSData);
+        }
+    }
+}
+
 /*
  * Invoked when a command is received from drone.
  */
@@ -910,6 +925,9 @@ Bebop::commandReceived(eARCONTROLLER_DICTIONARY_KEY key,
         break;
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_GPSLOCATIONCHANGED:
         bebop->onGPSLocationChanged(elem);
+        break;
+    case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_GPSSTATE_NUMBEROFSATELLITECHANGED:
+        bebop->onNumberOfGPSSatellitesChanged(elem);
         break;
     case ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_PILOTINGSTATE_MOTIONSTATE:
         bebop->onMotionStateChanged(elem);
