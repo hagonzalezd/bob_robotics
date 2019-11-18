@@ -244,6 +244,9 @@ public:
     //! Handler for when an action finishes
     using ActionCompletedHandler = std::function<void(bool success)>;
 
+    //! Handler for when Bebop's GPS position is updated
+    using GPSUpdateHandler = std::function<void(const GPSData &gps)>;
+
     Bebop(degrees_per_second_t maxYawSpeed = DefaultMaximumYawSpeed,
           meters_per_second_t maxVerticalSpeed = DefaultMaximumVerticalSpeed,
           degree_t maxTilt = DefaultMaximumTilt);
@@ -428,6 +431,7 @@ private:
     FlyingStateChangedHandler m_FlyingStateChangedHandler = nullptr;
     ActionCompletedHandler m_AnimationCompletedCallback = nullptr;
     ActionCompletedHandler m_MoveToCompletedCallback = nullptr;
+    GPSUpdateHandler m_GPSUpdateCallback = nullptr;
     std::mutex m_AnimationMutex, m_GPSDataMutex;
     AnimationState m_AnimationState = AnimationState::Idle;
     std::atomic<bool> m_ReadyForHandTakeOff{ false };
@@ -472,3 +476,8 @@ private:
 }; // Bebop
 } // Robots
 } // BoBRobotics
+
+// Custom stream for GPSData
+std::ostream &
+operator<<(std::ostream &os,
+           const BoBRobotics::Robots::Bebop::GPSData &gps);

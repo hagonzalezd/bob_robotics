@@ -442,6 +442,12 @@ Bebop::isVideoRecording() const
     return m_IsVideoRecording;
 }
 
+void
+Bebop::setGPSUpdateHandler(Bebop::GPSUpdateHandler callback)
+{
+    m_GPSUpdateCallback = callback;
+}
+
 /*!
  * \brief Tell the drone to take a photo and store it.
  */
@@ -818,6 +824,11 @@ Bebop::onGPSLocationChanged(const ARDict &dict)
         m_GPSData.coordinate.height = meter_t{ (double) height };
     } else {
         m_GPSData.coordinate.height = unan<meter_t>();
+    }
+
+    // Run callback function if specified; we still hold the lock
+    if (m_GPSUpdateCallback) {
+        m_GPSUpdateCallback(m_GPSData);
     }
 }
 
