@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 include(../../../cmake/bob_robotics.cmake)
-BoB_module_custom(SOURCES bebop.cc video.cc
+BoB_module_custom(SOURCES bebop.cc gps_log.cc video.cc
                   BOB_MODULES robots hid video common
                   PLATFORMS unix)
 
