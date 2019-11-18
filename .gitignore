@@ -10,6 +10,7 @@
 
 # Temporary files
 *~
+*.autosave
 
 # Video files
 *.avi
