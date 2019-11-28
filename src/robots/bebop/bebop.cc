@@ -846,6 +846,9 @@ Bebop::onGPSLocationChanged(const ARDict &dict)
         m_GPSData.coordinate.height = unan<meter_t>();
     }
 
+    // Signal that new data is available
+    m_GPSDataUpdated = true;
+
     // Run callback function if specified; we still hold the lock
     if (m_GPSUpdateCallback) {
         m_GPSUpdateCallback(m_GPSData);
@@ -859,6 +862,9 @@ Bebop::onNumberOfGPSSatellitesChanged(const ARDict &dict)
     uint8_t val;
     if (dict.get(val, ARCONTROLLER_DICTIONARY_KEY_ARDRONE3_GPSSTATE_NUMBEROFSATELLITECHANGED_NUMBEROFSATELLITE)) {
         m_GPSData.numberOfSatellites = val;
+
+        // Signal that new data is available
+        m_GPSDataUpdated = true;
 
         // Run callback function if specified; we still hold the lock
         if (m_GPSUpdateCallback) {
