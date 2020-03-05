@@ -43,7 +43,8 @@ macro(BoB_project)
 
     if(PARSED_ARGS_EXECUTABLE)
         # Build a single executable from these source files
-        add_executable(${NAME} "${PARSED_ARGS_SOURCES}" "${H_FILES}")
+        add_executable(${NAME} "${PARSED_ARGS_SOURCES}" "${H_FILES}" PROPERTY CXX_STANDARD 14)
+        set(TARGET ${NAME} PROPERTY CXX_STANDARD 14)
         set(BOB_TARGETS ${NAME})
     else()
         # Build each *.cc file as a separate executable
@@ -51,6 +52,7 @@ macro(BoB_project)
             get_filename_component(shortname ${file} NAME)
             string(REGEX REPLACE "\\.[^.]*$" "" target ${shortname})
             add_executable(${target} "${file}" "${H_FILES}")
+            set(TARGET ${target} PROPERTY CXX_STANDARD 14)
             list(APPEND BOB_TARGETS ${target})
         endforeach()
     endif()
@@ -216,6 +218,7 @@ macro(BoB_module_custom)
 
             # Gazebo plugins are shared libraries
             add_library(${target} SHARED ${plugin})
+            set(TARGET ${target} PROPERTY CXX_STANDARD 14)
             list(APPEND BOB_TARGETS ${target})
         endforeach()
     endif()
@@ -228,6 +231,7 @@ macro(BoB_module_custom)
 
     file(GLOB H_FILES "${BOB_ROBOTICS_PATH}/include/${NAME}/*.h")
     add_library(${BOB_TARGETS} STATIC ${PARSED_ARGS_SOURCES} ${H_FILES})
+    set(TARGET ${BOB_TARGETS} PROPERTY CXX_STANDARD 14)
     set_target_properties(${BOB_TARGETS} PROPERTIES PREFIX ./lib)
     add_definitions(-DNO_HEADER_DEFINITIONS)
 endmacro()
