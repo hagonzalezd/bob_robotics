@@ -43,7 +43,7 @@ macro(BoB_project)
 
     if(PARSED_ARGS_EXECUTABLE)
         # Build a single executable from these source files
-        add_executable(${NAME} "${PARSED_ARGS_SOURCES}" "${H_FILES}" PROPERTY CXX_STANDARD 14)
+        add_executable(${NAME} "${PARSED_ARGS_SOURCES}" "${H_FILES}")
         set(TARGET ${NAME} PROPERTY CXX_STANDARD 14)
         set(BOB_TARGETS ${NAME})
     else()
