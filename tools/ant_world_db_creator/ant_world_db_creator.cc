@@ -187,20 +187,74 @@ private:
     AntWorld::RouteContinuous &m_Route;
 };
 
+void saveTopDownView(const filesystem::path &imagePath,
+                     AntWorld::Renderer &renderer,
+                     sf::Window &window)
+{
+    BOB_ASSERT(!imagePath.exists()); // We don't want to overwrite it by mistake
+
+    const unsigned int renderWidth = 1050;
+    const unsigned int renderHeight = 1050;
+
+    // Resize window to desired size
+    window.setSize({ renderWidth, renderHeight });
+    
+    // **NOTE** because 1050 isn't a multiple of 4 - need to tweak pack alignement
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+    // Create input to read snapshots from screen
+    Video::OpenGL input({ renderWidth, renderHeight });
+
+    // Host OpenCV array to hold pixels read from screen
+    cv::Mat map(renderHeight, renderWidth, CV_8UC3);
+
+    // Clear colour and depth buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Render first person
+    renderer.renderTopDownView(0, 0, renderWidth, renderHeight);
+
+    window.display();
+
+    // Read snapshot
+    input.readFrame(map);
+
+    LOGI << "Saving image to " << imagePath << "...";
+    BOB_ASSERT(cv::imwrite(imagePath.str(), map));
+}
+
 int bobMain(int argc, char **argv)
 {
     const auto currentDir = filesystem::path{ argv[0] }.parent_path();
-    auto window = AntWorld::AntAgent::initialiseWindow(RenderSize);
+    auto window = AntWorld::Camera::initialiseWindow(RenderSize);
 
-    // Allow for using the old, lower-res ant world
-    bool oldAntWorld = false;
-    if (argc > 1 && strcmp(argv[1], "--old-ant-world") == 0) {
-        oldAntWorld = true;
+    bool oldAntWorld = false, topDownOnly = false;
+    while (argc > 1) {
+        if (strcmp(argv[1], "--old-ant-world") == 0) {
+            oldAntWorld = true;
+        } else if (strcmp(argv[1], "--top-down-only") == 0) {
+            topDownOnly = true;
+        } else {
+            continue;
+        }
         argc--;
         argv++;
     }
 
-    if (argc > 1) {
+    const bool isRoute = argc > 1;
+    BOB_ASSERT(!(isRoute && topDownOnly)); // --top-down-only only makes sense for grid mode
+
+    AntWorld::Renderer renderer{ 512, 0.01 };
+    const auto antWorldPath = Path::getResourcesPath() / "antworld";
+    if (oldAntWorld) {
+        renderer.getWorld().load(antWorldPath / "world5000_gray.bin",
+                                 { 0.0f, 1.0f, 0.0f },
+                                 { 0.898f, 0.718f, 0.353f });
+    } else {
+        renderer.getWorld().loadObj(antWorldPath / "seville_vegetation_downsampled.obj");
+    }
+
+    if (isRoute) {
         // Remaining arguments are paths to route files
         do {
             // Create route object and load route file specified by command line
@@ -216,14 +270,19 @@ int bobMain(int argc, char **argv)
                 databaseName = databaseName.substr(0, pos);
             }
 
-            RouteDatabaseCreator creator(currentDir / databaseName, oldAntWorld, *window, route);
+            RouteDatabaseCreator creator(currentDir / databaseName, oldAntWorld,
+                                         *window, route);
             creator.runForRoute();
 
             argv++;
         } while (--argc > 1);
     } else {
-        GridDatabaseCreator creator(currentDir / "world5000_grid", oldAntWorld, *window);
-        creator.runForGrid();
+        const auto databasePath = currentDir / "world5000_grid";
+        if (!topDownOnly) {
+            GridDatabaseCreator creator{ databasePath, oldAntWorld, *window };
+            creator.runForGrid();
+        }
+        saveTopDownView(databasePath / "world5000.png", renderer, *window);
     }
 
     return EXIT_SUCCESS;
