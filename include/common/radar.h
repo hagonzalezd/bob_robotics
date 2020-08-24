@@ -5,12 +5,17 @@
 #include <cmath>
 
 // Serial port includes
-#include <SerialPort.h>
+#include <SerialPort.h> // We need the constants definition
 #include <iostream>
+
+#include <chrono>
+#include <thread>
+
 
 // BoB robotics includes
 //#include "common/fsm.h"
 #include "fsm.h"
+#include "common/serial_interface.h"
 
 //----------------------------------------------------------------------------
 // BoBRobotics::RadarState
@@ -144,10 +149,13 @@ class Radar : public FSM<RadarState>::StateHandler
 
     //std::ofstream m_Stream;
 public:
-    Radar(const char *device) : m_Counts(0), m_FSM(this, RadarState::Invalid), m_SerialPort(device), m_HasData(false), m_BufferPosition(0)//, m_Stream("radar_bytes.csv")
+    //Radar(const char *device) : m_Counts(0), m_FSM(this, RadarState::Invalid), m_SerialPort(device), m_HasData(false), m_BufferPosition(0)//, m_Stream("radar_bytes.csv")
+      Radar(const char *device) : m_Counts(0), m_FSM(this, RadarState::Invalid), m_SerialPort(device), m_HasData(false) //, m_BufferPosition(0)//, m_Stream("radar_bytes.csv")      
     {
         // Open serial port
-        m_SerialPort.Open(SerialPort::BAUD_921600);
+        //m_SerialPort.Open(SerialPort::BAUD_921600);
+        //m_SerialPort.Open(SerialPort::BAUD_921600);
+        m_SerialPort.setAttributes(B921600);
 
         // Wait for data
         m_FSM.transition(RadarState::Waiting);
@@ -164,7 +172,8 @@ public:
 
 	    // If buffer size is 4096 then go to append old slice
             //byte = m_SerialPort.ReadByte(5000);//readByte();
-            byte = readByte();
+            byte = readByte(); // serial_interface attempt failing at the moment
+	    
             //m_Stream << (unsigned int)byte << ",";
             if (malformation_flag == 1){
                 //std::cout << "Next bytes "<< (unsigned int)byte <<std::endl;
@@ -760,6 +769,7 @@ private:
     //------------------------------------------------------------------------
     // Private methods
     //------------------------------------------------------------------------
+    /*
     uint8_t readByte()
     {
         if(m_Buffer.empty() || m_BufferPosition == m_Buffer.size()) {
@@ -770,18 +780,36 @@ private:
         }
 
         return (uint8_t)m_Buffer[m_BufferPosition++];
+	}*/
+    
+    uint8_t readByte()
+    {            
+	    uint8_t byte;
+	    if (!m_SerialPort.readByte(byte)){
+	      throw std::runtime_error("Serial error");
+	    }	    
+        return byte;      
     }
 
+    /*
+    // read data from mecanum
+    template<typename T, size_t N>
+    void read(T (&data)[N])
+    {
+        m_SerialPort.read(data);
+	std::cout << "at least the data wwas read without an error " << std::endl;
+	} */   
 
     //------------------------------------------------------------------------
     // Members
     //------------------------------------------------------------------------
     FSM<RadarState> m_FSM;
 
-    SerialPort m_SerialPort;
+    //SerialPort m_SerialPort;
+    BoBRobotics::SerialInterface m_SerialPort;
 
-    SerialPort::DataBuffer m_Buffer;
-    size_t m_BufferPosition;
+    //SerialPort::DataBuffer m_Buffer;
+    //size_t m_BufferPosition;
 
 
     bool m_HasData;

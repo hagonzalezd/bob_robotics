@@ -50,10 +50,16 @@ SerialInterface::setup(const char *path)
     }
 
     // set speed to 115,200 bps, 8n1 (no parity)
-    setAttributes(B9600);
+    //setAttributes(B9600);
+    setAttributes(B921600);
 
     // set no blocking
-    setBlocking(true);
+    //setBlocking(true);
+
+    
+    setBlocking(false);
+
+    std::cout << std::endl << "Serial successfully initialised" << std::endl;
 
     LOGI << "Serial successfully initialised";
 }
@@ -89,6 +95,8 @@ SerialInterface::setAttributes(int speed)
     if (tcsetattr(m_Serial_fd, TCSANOW, &tty) != 0) {
         throw std::runtime_error("Error in setup from tcgetattr:" + std::string(strerror(errno)));
     }
+
+    std::cout << std::endl << "Interface correctly configured" << speed << std::endl;
 }
 
 void
@@ -117,6 +125,7 @@ SerialInterface::readByte(uint8_t &byte)
         if (errno == EAGAIN) {
             return false;
         }
+	std::cout << std::endl << "Error code: " << errno << std::endl;
 
         // Otherwise it's a proper error
         throw std::runtime_error("Failed to read byte from serial port");

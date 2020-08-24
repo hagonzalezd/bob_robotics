@@ -41,19 +41,19 @@ int main()
 
     size_t lastProcessedFrame = -1;
     while(true) {
-       std::this_thread::sleep_for(1.0s);
+	  std::this_thread::sleep_for(1.0s);
 
-       {
-         std::lock_guard<std::mutex> l(mutex);
+	  {
+	    std::lock_guard<std::mutex> l(mutex);
 
-         if(lastProcessedFrame != goodFrame) {
-             std::cout << "output:" << std::endl;
-             for(const auto &c : coords) {
-                 std::cout << "\t" << ":" << std::get<0>(c) << "," << std::get<1>(c) << "," << std::get<2>(c) << std::endl;
-             }
-             lastProcessedFrame = goodFrame;
-         }
-       }
-    }
+	    if(lastProcessedFrame != goodFrame) {
+		std::cout << "output:" << std::endl;
+		for(const auto &c : coords) {
+		    std::cout << "\t" << ":" << std::get<0>(c) << "," << std::get<1>(c) << "," << std::get<2>(c) << std::endl;
+		}
+		lastProcessedFrame = goodFrame;
+	    }
+	  }
+    } // while loop
     return EXIT_SUCCESS ;
 }
