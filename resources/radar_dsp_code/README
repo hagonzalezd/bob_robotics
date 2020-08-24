@@ -1,0 +1,87 @@
+/////////////////////////////////////////////////
+// May 21 2020
+// Code for flashing the AWR1642-ODS radar to 
+// configure the serial data interface. This is
+// used in the following items:
+// 1. bob_robotics/examples/radar
+// 2. bob_robotics/projects/radar_bot
+// 
+/////////////////////////////////////////////////
+
+This code is to be compiled in Windows, using
+Code Composer Studio (CCS). However, you are only
+required to compile it if you want to extend the
+DSP functionality on the radar. Otherwise, the
+binaries are pre-built here for you to just flash
+the radar using uniflash
+
+--------------------------------------------------
+Compiling the Code Composer Studio code 8.2.0:
+
+Again, these steps are only needed if you want to
+extend the radar functionality:
+
+1. The compilation should occur in two steps:
+
+	* First the DSS folder, which contains the
+	  DSP code
+		+ ods_16xx_dss
+		 	- Rebuild project
+
+	* Second the MSS folder, which contains the
+	  soft core code
+		+ ods_16xx_mss
+			- Rebuild project
+
+2. There could be an error on the compilation in Windows,
+   which is associated to the delete binaries command:
+		+ Right click on each project:
+			properties->Build->Steps
+		+ And change the rm -f based command
+		  for these ones:
+			del /f /q
+		+ Then Rebuild project in the same
+		  order DSS -> MSS
+
+
+--------------------------------------------------
+Flashing the radar using Uniflash:
+
+0. Set the jumpers on the AWR1642-ODS in the programming 
+   mode:
+	* SOP2: Black jumper closing the two contacts
+	* SOP1: Black jumper open
+	* SOP0: Black jumper closing the two contacts
+1. Open uniflash with the microUSB cable connected
+   to the radar.
+2. Select the device you want to flash:
+   - In our case it is: AWR1642-ODS
+3. Go to the Settings & Utilities tab to set the 
+   COM port.
+   - The COM port number can be seen in the Device
+     Manager in front of the User UART line:
+	* XDS110 Class Application/User UART (COM38)
+	* XDS110 Class Auxiliary Data Port (COM39)
+     In this case it would be COM38
+4. Go to the Program tab and click on Browse in front of
+   Meta Image 1:
+	* Select the binary you want to flash:
+	  + This is the file you want to use for flashing
+            the radar:
+   		ods_16xx_mss/Debug/xwr16xx_ods_ti_design_lab.bin
+	* Then click on Load Image
+
+5. After flashing, we change the jumpers from the programming
+   mode to the execution mode:
+	* SOP2: Black jumper open
+	* SOP1: Black jumper open
+	* SOP0: Black jumper closing the two contacts
+6. Press the nRST button and then 
+   disconnect the microUSB cable for connecting it to the 
+   Jetson NVIDIA board
+	* Then we can proceed with the UART_transmit.py
+	  inside the corresponding example you want to run:
+		+ bob_robotics/examples/radar
+		+ bob_robotics/projects/radar_bot
+
+

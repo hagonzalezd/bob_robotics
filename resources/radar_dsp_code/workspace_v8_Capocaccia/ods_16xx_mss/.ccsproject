@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?ccsproject version="1.0"?>
+<projectOptions>
+	<ccsVersion value="8.2.0"/>
+	<deviceVariant value="Cortex R.AWR1642"/>
+	<deviceFamily value="TMS470"/>
+	<deviceEndianness value="little"/>
+	<codegenToolVersion value="16.9.6.LTS"/>
+	<isElfFormat value="true"/>
+	<linkerCommandFile value="mss_ods_linker.cmd"/>
+	<rts value="libc.a"/>
+	<createSlaveProjects value=""/>
+	<templateProperties value="id=ods_mss.projectspec.ods_16xx_mss,type=rtsc,products=com.ti.rtsc.SYSBIOS:6.53.2.00;com.ti.MMWAVE_SDK:2.0.0.04;,xdcToolsVersion=3.50.4.43_core,target=ti.targets.arm.elf.R4F,platform=ti.platforms.cortexR:AWR16XX:false:200,endianness=little,output_format=elf,buildProfile=release,configuroOptions=--compileOptions &quot;--enum_type=int &quot; "/>
+	<origin value="C:\ti\mmwave_automotive_toolbox_2_4_0\labs\lab0004_obstacle_detection\src\ods_mss.projectspec"/>
+	<filesToOpen value=""/>
+	<isTargetManual value="false"/>
+</projectOptions>

@@ -1,0 +1,4 @@
+#Tue Nov 06 17:16:36 GST 2018
+__DEFAULT__=false
+org.eclipse.help.ui.localSearch.master=true
+expression=MSS_SYS_VCLK

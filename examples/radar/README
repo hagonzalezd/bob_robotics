@@ -1,0 +1,34 @@
+/////////////////////////////////////////////////
+// May 21 2020
+// Example within the bob_robotics framework 
+// to pull serial data from the radar AWR1642
+// 
+/////////////////////////////////////////////////
+
+Cleaning this project for a fresh compilation:
+
+- cd build
+- make clean
+- cd ..
+- bob_make
+
+Running this project in conjunction with the radar AWR1642 from Texas Instruments:
+
+a. The radar needs to be flashed using uniflash and the corresponding binaries to stream data via the serial interface
+	+ Follow the flashing steps here in uniflash:
+		/bob_robotics/resources/radar_dsp_code
+b. Once the radar is flashed, we execute the following:
+
+- sudo chmod 666 /dev/ttyACM0 // Granting access to the serial ports
+- sudo chmod 666 /dev/ttyACM1 // Granting access to the serial ports
+- python3 UART_transmit.py    // A virtual environment is available in bob_robotics/examples/radar
+			      // It is useful to press the nRST button on the radar to refresh its attention to the transmit script
+			      // Once the script closes successfully with all the commands being received by the radar the sensor is ready to send the serial data
+
+- ./radar		      // This command will start the acquisition
+			      // 
+
+c. You can close it and simply reopen it without re-flashing or re-configuring the serial transmission again. Just type again:
+
+- ./radar	
+
