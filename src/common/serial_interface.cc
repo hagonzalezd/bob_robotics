@@ -43,8 +43,8 @@ SerialInterface::~SerialInterface()
 void
 SerialInterface::setup(const char *path)
 {
-
-    m_Serial_fd = open(path, O_WRONLY | O_NOCTTY | O_SYNC);
+  //m_Serial_fd = open(path, O_WRONLY | O_NOCTTY | O_SYNC);
+    m_Serial_fd = open(path, O_RDWR | O_NOCTTY | O_SYNC);
     if (m_Serial_fd < 0) {
         throw std::runtime_error("Could not open serial interface: " + std::string(strerror(errno)));
     }
@@ -126,9 +126,10 @@ SerialInterface::readByte(uint8_t &byte)
             return false;
         }
 	std::cout << std::endl << "Error code: " << errno << std::endl;
+	std::cout << std::endl << "byte read: " << byte << std::endl;
 
         // Otherwise it's a proper error
-        throw std::runtime_error("Failed to read byte from serial port");
+        //throw std::runtime_error("Failed to read byte from serial port");
     }
 
     return true;
